@@ -49,16 +49,17 @@ Visear-ASL-Translator/
 │   └── vcpkg_installed/x64-windows/ ✅ All packages installed
 │
 ├── docs/
-│   ├── 00-PROJECT-STATUS.md    ✅ This file
-│   ├── 01-ARCHITECTURE-OVERVIEW.md
-│   ├── 02-PROJECT-STRUCTURE.md
-│   ├── 03-ML-PIPELINE.md
-│   ├── 04-APPLICATION-GUIDE.md
-│   ├── 05-API-SERVER.md
-│   ├── 06-INTEGRATION-GUIDE.md
-│   ├── 07-MOBILE-ROADMAP.md
-│   ├── 08-GETTING-STARTED.md   ✅ Updated with verified Windows steps
-│   └── BUILD-COMMANDS.md       ✅ Updated with actual working commands
+│   ├── 00-PROJECT-STATUS.md           ✅ This file
+│   ├── 01-GITHUB-WORKFLOW.md          ✅ How to use git/GitHub
+│   ├── 02-GETTING-STARTED.md          ✅ Setup instructions
+│   ├── 03-BUILD-COMMANDS.md           ✅ Detailed build reference
+│   ├── 04-ARCHITECTURE-OVERVIEW.md
+│   ├── 05-PROJECT-STRUCTURE.md
+│   ├── 06-ML-PIPELINE.md
+│   ├── 07-APPLICATION-GUIDE.md
+│   ├── 08-API-SERVER.md
+│   ├── 09-INTEGRATION-GUIDE.md
+│   └── 10-MOBILE-ROADMAP.md
 │
 └── Visear-ASL-Translator/      (legacy VS skeleton — can be ignored)
     └── Visear-ASL-Translator.vcxproj
@@ -102,19 +103,19 @@ All packages installed at `build/vcpkg_installed/x64-windows/`.
 
 | Feature                        | Doc Reference         | Notes                                          |
 | ------------------------------ | --------------------- | ---------------------------------------------- |
-| App module (`app/`)            | `04-APPLICATION-GUIDE.md` | Application class, config system           |
-| UI panels (`ui/panels/`)       | `04-APPLICATION-GUIDE.md` | Camera, caption, control, debug panels     |
-| OpenCV camera capture          | `04-APPLICATION-GUIDE.md` | OpenCV is installed, just not wired up     |
-| MediaPipe hand/pose landmarks  | `03-ML-PIPELINE.md`   | Not yet integrated — needs Bazel or prebuilts  |
-| ONNX model loading             | `03-ML-PIPELINE.md`   | Runtime installed, session code not written    |
-| ASL → Text pipeline            | `03-ML-PIPELINE.md`   | Full pipeline stub pending                     |
-| whisper.cpp (STT)              | `03-ML-PIPELINE.md`   | Submodule not yet added                        |
-| Piper TTS                      | `03-ML-PIPELINE.md`   | Submodule not yet added                        |
-| Virtual camera output          | `06-INTEGRATION-GUIDE.md` | DirectShow (Windows), pending              |
-| Virtual microphone output      | `06-INTEGRATION-GUIDE.md` | VB-Audio / PulseAudio, pending             |
-| Backend API server             | `05-API-SERVER.md`    | FastAPI design complete, not yet built         |
-| Unit tests (`tests/`)          | `02-PROJECT-STRUCTURE.md` | GTest installed, no test files yet         |
-| ML model training pipeline     | `03-ML-PIPELINE.md`   | Python scripts not yet written                 |
+| App module (`app/`)            | `07-APPLICATION-GUIDE.md` | Application class, config system           |
+| UI panels (`ui/panels/`)       | `07-APPLICATION-GUIDE.md` | Camera, caption, control, debug panels     |
+| OpenCV camera capture          | `07-APPLICATION-GUIDE.md` | OpenCV is installed, just not wired up     |
+| MediaPipe hand/pose landmarks  | `06-ML-PIPELINE.md`   | Not yet integrated — needs Bazel or prebuilts  |
+| ONNX model loading             | `06-ML-PIPELINE.md`   | Runtime installed, session code not written    |
+| ASL → Text pipeline            | `06-ML-PIPELINE.md`   | Full pipeline stub pending                     |
+| whisper.cpp (STT)              | `06-ML-PIPELINE.md`   | Submodule not yet added                        |
+| Piper TTS                      | `06-ML-PIPELINE.md`   | Submodule not yet added                        |
+| Virtual camera output          | `09-INTEGRATION-GUIDE.md` | DirectShow (Windows), pending              |
+| Virtual microphone output      | `09-INTEGRATION-GUIDE.md` | VB-Audio / PulseAudio, pending             |
+| Backend API server             | `08-API-SERVER.md`    | FastAPI design complete, not yet built         |
+| Unit tests (`tests/`)          | `05-PROJECT-STRUCTURE.md` | GTest installed, no test files yet         |
+| ML model training pipeline     | `06-ML-PIPELINE.md`   | Python scripts not yet written                 |
 
 ---
 
@@ -144,7 +145,7 @@ All packages installed at `build/vcpkg_installed/x64-windows/`.
 
 ## Immediate Next Steps
 
-Follow the roadmap from `08-GETTING-STARTED.md`:
+Follow the roadmap from `02-GETTING-STARTED.md`:
 
 1. **Add `src/app/Application.h/.cpp`** — SDL init, main loop, shutdown
 2. **Add `src/ui/UIManager.h/.cpp`** — ImGui docking layout orchestration
@@ -176,4 +177,4 @@ Remove-Item -Recurse -Force build
 # then re-run configure and build above
 ```
 
-See `docs/BUILD-COMMANDS.md` for the full reference including error fixes.
+See `docs/03-BUILD-COMMANDS.md` for the full reference including error fixes.

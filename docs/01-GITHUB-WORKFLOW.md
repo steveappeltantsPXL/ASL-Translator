@@ -18,7 +18,7 @@ cd ASL-Translator
 git submodule update --init --recursive
 ```
 
-Then follow `docs/BUILD-COMMANDS.md` to install vcpkg, configure, and build.
+Then follow `docs/03-BUILD-COMMANDS.md` to install vcpkg, configure, and build.
 
 ---
 
