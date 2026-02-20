@@ -1,7 +1,7 @@
 # Project Status — Visear ASL Translator
 
 **Last updated:** 2026-02-20
-**Phase:** Foundation complete — ready for feature development
+**Phase:** Foundation complete — repo administration configured, ready for feature development
 
 This document captures the actual current state of the project: what is built,
 what works, what is pending, and what to do next. It is the starting point for
@@ -34,6 +34,16 @@ Visear-ASL-Translator/
 ├── .gitignore                  ✅ Updated (vendor/ removed to allow submodules)
 ├── .clang-format               ✅ Google style, C++20, 100-col, 4-space indent
 ├── .gitmodules                 ✅ imgui (docking branch) registered
+├── CONTRIBUTING.md             ✅ Branching, commits, PR process, CLA requirement
+├── SECURITY.md                 ✅ Vulnerability reporting policy + response SLA
+├── CLA.md                      ✅ Individual contributor license agreement
+│
+├── .github/
+│   ├── PULL_REQUEST_TEMPLATE.md        ✅ Checklist-style PR template
+│   └── ISSUE_TEMPLATE/
+│       ├── bug_report.md               ✅ Structured bug report template
+│       ├── feature_request.md          ✅ Feature request template
+│       └── config.yml                  ✅ Blank issues disabled; links Discussions
 │
 ├── src/
 │   └── main.cpp                ✅ SDL3 + OpenGL3 + ImGui window running
@@ -59,7 +69,8 @@ Visear-ASL-Translator/
 │   ├── 07-APPLICATION-GUIDE.md
 │   ├── 08-API-SERVER.md
 │   ├── 09-INTEGRATION-GUIDE.md
-│   └── 10-MOBILE-ROADMAP.md
+│   ├── 10-MOBILE-ROADMAP.md
+│   └── 11-GITHUB-ADMIN.md             ✅ Repo admin reference (branch protection, teams, secrets)
 │
 └── Visear-ASL-Translator/      (legacy VS skeleton — can be ignored)
     └── Visear-ASL-Translator.vcxproj
@@ -96,6 +107,8 @@ All packages installed at `build/vcpkg_installed/x64-windows/`.
 - [x] **Dear ImGui rendering** — fullscreen dockspace, dark theme, docking enabled
 - [x] **FPS counter** visible in the main panel
 - [x] **`VisearASLTranslator.exe`** builds and runs from `build\Debug\`
+- [x] **GitHub repo administration** — PR/issue templates, branch protection docs,
+  contributor guide, security policy, CLA, `develop` + `release/v0.1.0` branches pushed
 
 ---
 
@@ -147,6 +160,13 @@ All packages installed at `build/vcpkg_installed/x64-windows/`.
 
 Follow the roadmap from `02-GETTING-STARTED.md`:
 
+### GitHub Admin (one-time, manual — see `11-GITHUB-ADMIN.md`)
+- [ ] Configure **branch protection rules** on `main` and `develop` in GitHub Settings
+- [ ] Set **team permissions** (Admin / Maintain / Write / Read) for each collaborator
+- [ ] Enable **Dependabot alerts** and **secret scanning** in GitHub Settings → Security
+- [ ] Add any **repository secrets** (API keys, model URLs) under Settings → Secrets
+
+### Feature Development
 1. **Add `src/app/Application.h/.cpp`** — SDL init, main loop, shutdown
 2. **Add `src/ui/UIManager.h/.cpp`** — ImGui docking layout orchestration
 3. **Add `src/ui/panels/CameraPanel.h/.cpp`** — live webcam feed via OpenCV
