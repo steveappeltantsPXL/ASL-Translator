@@ -59,17 +59,17 @@ Visear-ASL-Translator/
 │   └── vcpkg_installed/x64-windows/ ✅ All packages installed
 │
 ├── docs/
-│   ├── 00-PROJECT-STATUS.md           ✅ This file
-│   ├── 01-GITHUB-WORKFLOW.md          ✅ How to use git/GitHub
-│   ├── 02-GETTING-STARTED.md          ✅ Setup instructions
-│   ├── 03-BUILD-COMMANDS.md           ✅ Detailed build reference
-│   ├── 04-ARCHITECTURE-OVERVIEW.md
-│   ├── 05-PROJECT-STRUCTURE.md
-│   ├── 06-ML-PIPELINE.md
-│   ├── 07-APPLICATION-GUIDE.md
-│   ├── 08-API-SERVER.md
-│   ├── 09-INTEGRATION-GUIDE.md
-│   ├── 10-MOBILE-ROADMAP.md
+│   ├── 00-PROJECT-STATUS.md           ✅ Current state & verified environment (this file)
+│   ├── 01-GITHUB-WORKFLOW.md          ✅ Git workflow, branching, PR process
+│   ├── 02-GETTING-STARTED.md          ✅ Setup instructions & environment verification
+│   ├── 03-BUILD-COMMANDS.md           ✅ Detailed build reference with troubleshooting
+│   ├── 04-ARCHITECTURE-OVERVIEW.md    ✅ System design: 6 translation pipelines
+│   ├── 05-PROJECT-STRUCTURE.md        ✅ Codebase layout & component responsibilities
+│   ├── 06-ML-PIPELINE.md              ✅ ML architecture: MediaPipe, ONNX, classification
+│   ├── 07-APPLICATION-GUIDE.md        ✅ App architecture & ImGui UI structure
+│   ├── 08-API-SERVER.md               ✅ Backend API design (FastAPI, endpoints)
+│   ├── 09-INTEGRATION-GUIDE.md        ✅ Virtual camera/mic integration (DirectShow/VB-Audio)
+│   ├── 10-MOBILE-ROADMAP.md           ✅ Mobile phases & platform considerations
 │   └── 11-GITHUB-ADMIN.md             ✅ Repo admin reference (branch protection, teams, secrets)
 │
 └── Visear-ASL-Translator/      (legacy VS skeleton — can be ignored)
@@ -158,23 +158,48 @@ All packages installed at `build/vcpkg_installed/x64-windows/`.
 
 ## Immediate Next Steps
 
-Follow the roadmap from `02-GETTING-STARTED.md`:
+### Phase 1: GitHub Admin (one-time, manual — see `11-GITHUB-ADMIN.md`)
 
-### GitHub Admin (one-time, manual — see `11-GITHUB-ADMIN.md`)
+**Priority:** Must complete before merging features to `develop`/`main`
+
 - [ ] Configure **branch protection rules** on `main` and `develop` in GitHub Settings
+  - Require PR review (1 approval)
+  - Require status checks passing
+  - Dismiss stale reviews on new push
+  - Restrict force pushes and deletions
 - [ ] Set **team permissions** (Admin / Maintain / Write / Read) for each collaborator
-- [ ] Enable **Dependabot alerts** and **secret scanning** in GitHub Settings → Security
-- [ ] Add any **repository secrets** (API keys, model URLs) under Settings → Secrets
+- [ ] Enable **Dependabot alerts** and **secret scanning** in GitHub Settings → Code security
+- [ ] Add any **repository secrets** (API keys, model URLs) under Settings → Secrets and variables
 
-### Feature Development
-1. **Add `src/app/Application.h/.cpp`** — SDL init, main loop, shutdown
-2. **Add `src/ui/UIManager.h/.cpp`** — ImGui docking layout orchestration
-3. **Add `src/ui/panels/CameraPanel.h/.cpp`** — live webcam feed via OpenCV
-4. **Add `src/capture/CameraCapture.h/.cpp`** — `cv::VideoCapture` wrapper
-5. **Add `src/ml/ONNXRuntime.h/.cpp`** — ONNX session management
-6. **Load a dummy ONNX model** and run inference to verify GPU path
-7. **Add whisper.cpp submodule** and wire up STT pipeline
-8. **Add unit tests** in `tests/` with GTest
+### Phase 2: Foundation API Layer (estimated 2–3 weeks)
+
+**Priority:** High — enables all downstream features
+
+1. **Create `src/app/Application.h/.cpp`** — Encapsulate SDL + ImGui lifecycle
+2. **Create `src/ui/UIManager.h/.cpp`** — Orchestrate ImGui docking layout
+3. **Create `src/capture/CameraCapture.h/.cpp`** — OpenCV `cv::VideoCapture` wrapper (RAII)
+4. **Create `src/ui/panels/CameraPanel.h/.cpp`** — Render live camera feed to ImGui
+5. **Verify camera works** — Test with built-in/USB webcam
+
+### Phase 3: ML Pipeline & Inference (estimated 2–4 weeks)
+
+**Priority:** High — core translation path
+
+1. **Create `src/ml/ONNXRuntime.h/.cpp`** — Session management, provider selection
+2. **Load a dummy ONNX model** from `resources/models/`
+3. **Create `src/ml/GestureClassifier.h/.cpp`** — Run inference on MediaPipe landmarks
+4. **Add MediaPipe hand/pose detection** (pending Bazel or prebuilt investigation)
+
+### Phase 4: Speech & NLP Integration (estimated 2–3 weeks)
+
+1. **Add `whisper.cpp` submodule** and wire up STT
+2. **Add `Piper` submodule** and wire up TTS
+3. **Create `src/pipeline/TranslationPipeline.h/.cpp`** — Orchestrate 6 bidirectional flows
+
+### Phase 5: Testing & Hardening (estimated 1–2 weeks)
+
+1. **Add unit tests** in `tests/` with GTest
+2. **Add integration tests** for end-to-end pipelines
 
 ---
 
@@ -198,3 +223,43 @@ Remove-Item -Recurse -Force build
 ```
 
 See `docs/03-BUILD-COMMANDS.md` for the full reference including error fixes.
+
+---
+
+## Quick Start for New Developers
+
+**First Time?** Follow these steps:
+
+1. **Clone the repo with submodules:**
+   ```powershell
+   git clone https://github.com/steveappeltantsPXL/ASL-Translator.git
+   cd ASL-Translator
+   git submodule update --init --recursive
+   ```
+
+2. **Install prerequisites** (Windows 11):
+   ```powershell
+   winget install Kitware.CMake
+   winget install Ninja-build.Ninja
+   ```
+
+3. **Install vcpkg** (one-time, 15–45 min first run):
+   ```powershell
+   git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+   C:\vcpkg\bootstrap-vcpkg.bat
+   [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", "C:\vcpkg", "User")
+   # Restart terminal
+   ```
+
+4. **Configure and build:**
+   ```powershell
+   cmake -B build -G "Visual Studio 17 2022" -A x64 `
+       -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+       -DVCPKG_TARGET_TRIPLET=x64-windows
+   cmake --build build --config Debug
+   .\build\Debug\VisearASLTranslator.exe
+   ```
+
+5. **You should see:** A black window with a white FPS counter in the top-left corner.
+
+**For detailed setup, build errors, and troubleshooting,** see `docs/02-GETTING-STARTED.md`.
