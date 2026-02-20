@@ -1,0 +1,75 @@
+BasedOnStyle:                      Google
+IndentWidth:                       4
+TabWidth:                          4
+UseTab:                            Never
+ColumnLimit:                       100
+
+# Braces
+BreakBeforeBraces:                 Attach
+BraceWrapping:
+  AfterClass:                      false
+  AfterControlStatement:           false
+  AfterFunction:                   false
+  AfterNamespace:                  false
+  AfterStruct:                     false
+  BeforeElse:                      false
+
+# Alignment
+AlignAfterOpenBracket:             Align
+AlignConsecutiveAssignments:       false
+AlignConsecutiveDeclarations:      false
+AlignOperands:                     true
+AlignTrailingComments:             true
+PointerAlignment:                  Left
+ReferenceAlignment:                Left
+
+# Spacing
+SpaceAfterCStyleCast:              false
+SpaceBeforeAssignmentOperators:    true
+SpaceBeforeParens:                 ControlStatements
+SpaceInEmptyParentheses:           false
+SpacesInAngles:                    false
+SpacesInContainerLiterals:         false
+SpacesInParentheses:               false
+SpacesInSquareBrackets:            false
+
+# Includes
+SortIncludes:                      CaseSensitive
+IncludeBlocks:                     Regroup
+IncludeCategories:
+  # Project headers
+  - Regex:           '".*"'
+    Priority:        1
+  # SDL / vendor headers
+  - Regex:           '<SDL3/.*>'
+    Priority:        2
+  - Regex:           '<imgui.*>'
+    Priority:        2
+  # System / STL headers
+  - Regex:           '<.*>'
+    Priority:        3
+
+# Functions
+AllowShortFunctionsOnASingleLine:  Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine:      false
+AlwaysBreakTemplateDeclarations:   Yes
+
+# Line breaking
+BinPackArguments:                  false
+BinPackParameters:                 false
+BreakBeforeBinaryOperators:        None
+BreakBeforeTernaryOperators:       true
+BreakConstructorInitializers:      BeforeColon
+BreakInheritanceList:              BeforeColon
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth:           4
+
+# Misc
+Cpp11BracedListStyle:              true
+DerivePointerAlignment:            false
+FixNamespaceComments:              true
+MaxEmptyLinesToKeep:               1
+NamespaceIndentation:              None
+ReflowComments:                    true
+Standard:                          c++20
