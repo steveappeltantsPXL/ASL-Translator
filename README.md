@@ -1,196 +1,190 @@
-# ASL Translator
+# Visear ASL Translator
 
-A real-time American Sign Language (ASL) recognition and translation desktop application built with Dear ImGui, SDL2, and ONNX Runtime, targeting Windows with MSVC.
+A real-time, bidirectional American Sign Language (ASL) translation system. Translates between ASL and spoken/written English in real time, enabling seamless communication between deaf/hard-of-hearing and hearing individuals — including integration with video conferencing platforms.
+
+**Status:** Foundation complete — build system working, app running. Feature development in progress.
 
 ---
 
-## Project Overview
+## Quick Links
 
-This application captures live webcam video, processes hand/gesture landmarks using a computer vision pipeline (MediaPipe or equivalent), and runs inference via a pre-trained ONNX model to translate ASL gestures into text in real time. The UI is rendered using Dear ImGui over an SDL2 window with a DirectX 11 backend.
+- **Status & Architecture:** [docs/00-PROJECT-STATUS.md](docs/00-PROJECT-STATUS.md)
+- **Getting Started:** [docs/02-GETTING-STARTED.md](docs/02-GETTING-STARTED.md)
+- **Build Commands:** [docs/03-BUILD-COMMANDS.md](docs/03-BUILD-COMMANDS.md)
+- **GitHub Workflow:** [docs/01-GITHUB-WORKFLOW.md](docs/01-GITHUB-WORKFLOW.md)
+- **Full Documentation:** [docs/](docs/)
 
 ---
 
 ## Technology Stack
 
-| Component       | Technology                                   |
-| --------------- | -------------------------------------------- |
-| UI Framework    | Dear ImGui (Docking branch)                  |
-| Windowing/Input | SDL2                                         |
-| Renderer        | DirectX 11 (via ImGui DX11 backend)          |
-| ML Inference    | ONNX Runtime (C++ API)                       |
-| Computer Vision | OpenCV (webcam capture + preprocessing)      |
-| Language        | C++17                                        |
-| Build/IDE       | Visual Studio (MSVC), Empty Project template |
+| Component          | Technology                           | Status        |
+| ------------------ | ------------------------------------ | ------------- |
+| Language           | C++20                                | ✅ Working    |
+| Build System       | CMake 3.24+ with Ninja              | ✅ Working    |
+| Package Manager    | vcpkg (x64-windows)                 | ✅ Working    |
+| UI Framework       | Dear ImGui (docking branch)         | ✅ Running    |
+| Windowing/Input    | SDL3                                | ✅ Running    |
+| Rendering          | OpenGL 3.0+                         | ✅ Running    |
+| ML Inference       | ONNX Runtime (GPU support)          | ✅ Installed  |
+| Computer Vision    | OpenCV 4.x                          | ✅ Installed  |
+| Hand/Pose Detection| MediaPipe *(not yet integrated)*    | 🔄 Planned    |
+| Speech-to-Text     | whisper.cpp *(submodule ready)*     | 🔄 Planned    |
+| Text-to-Speech     | Piper *(submodule ready)*           | 🔄 Planned    |
+| IDE                | Visual Studio 2022 (MSVC v143)      | ✅ Supported  |
+| Testing            | Google Test (GTest)                 | ✅ Installed  |
 
 ---
 
-## Visual Studio Project Setup
+## Project Vision
 
-### Template
+Six translation pipelines (ASL ↔ Text/Speech, Speech ↔ Text/ASL) enable:
 
-Use the **Empty Project** template in Visual Studio:
-
-> File → New → Project → C++ → General → **Empty Project**
-
-Do **not** use the Windows Desktop Application wizard. SDL2 manages the entry point (`SDL_main`), and using a wizard-generated `WinMain` will conflict.
-
-### Key Project Properties
-
-Navigate to **Project → Properties** and configure:
-
-- **Configuration Properties → General**
-  - C++ Language Standard: `ISO C++17 (/std:c++17)`
-
-- **Linker → System**
-  - SubSystem: `Windows (/SUBSYSTEM:WINDOWS)`
-
-- **VC++ Directories**
-  - Include Directories: paths to SDL2, ImGui, ONNX Runtime, and OpenCV headers
-  - Library Directories: paths to their respective `.lib` files
-
-- **Linker → Input → Additional Dependencies**
-
-  ```
-  SDL2.lib
-  SDL2main.lib
-  d3d11.lib
-  d3dcompiler.lib
-  onnxruntime.lib
-  opencv_world4xx.lib
-  ```
-
-- **Build Events → Post-Build**
-  - Copy required `.dll` files (`SDL2.dll`, `onnxruntime.dll`, `opencv_worldXXX.dll`) to the output directory.
+- **Voice Mode:** Deaf user in video call → signs → spoken English output to hearing participants
+- **Caption Mode:** Live ASL/speech → text captions for accessibility
+- **Full Duplex:** Bidirectional ASL/speech translation in real time
+- **Virtual Devices:** Output to Zoom/Teams as virtual camera/microphone/captions
 
 ---
 
-## Repository Structure (Planned)
+## Getting Started (Windows 11)
+
+### One-Time Setup
+
+```powershell
+# Install prerequisites
+winget install Kitware.CMake
+winget install Ninja-build.Ninja
+
+# Install and configure vcpkg
+git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+C:\vcpkg\bootstrap-vcpkg.bat
+[System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", "C:\vcpkg", "User")
+
+# Restart terminal to load VCPKG_ROOT
+```
+
+### Clone & Build
+
+```powershell
+git clone https://github.com/steveappeltantsPXL/ASL-Translator.git
+cd ASL-Translator
+
+# Pull git submodules (Dear ImGui)
+git submodule update --init --recursive
+
+# Configure and build
+cmake -B build -G "Visual Studio 17 2022" -A x64 `
+    -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+    -DVCPKG_TARGET_TRIPLET=x64-windows
+
+cmake --build build --config Debug
+
+# Run
+.\build\Debug\VisearASLTranslator.exe
+```
+
+**Troubleshooting?** See [docs/03-BUILD-COMMANDS.md](docs/03-BUILD-COMMANDS.md) for detailed build steps and error fixes.
+
+---
+
+## Project Structure
 
 ```
-asl-translator/
+Visear-ASL-Translator/
 ├── src/
-│   ├── main.cpp                  # Entry point, SDL2 + ImGui init
-│   ├── ui/
-│   │   ├── AppWindow.h/.cpp      # Main application window layout
-│   │   ├── VideoPanel.h/.cpp     # Live webcam feed panel
-│   │   └── TranslationPanel.h/.cpp  # Output/history display
-│   ├── capture/
-│   │   ├── CameraCapture.h/.cpp  # OpenCV webcam wrapper
-│   │   └── FrameProcessor.h/.cpp # Preprocessing pipeline
-│   ├── inference/
-│   │   ├── OnnxModel.h/.cpp      # ONNX Runtime wrapper
-│   │   └── GestureClassifier.h/.cpp  # Pre/post-processing for model I/O
-│   └── utils/
-│       ├── Logger.h/.cpp
-│       └── Config.h/.cpp
-├── assets/
-│   └── models/
-│       └── asl_model.onnx        # Trained ONNX model (not included, see below)
-├── third_party/
-│   ├── imgui/                    # Dear ImGui source (vendored)
-│   ├── SDL2/                     # SDL2 headers + libs
-│   ├── onnxruntime/              # ONNX Runtime headers + libs
-│   └── opencv/                   # OpenCV headers + libs
+│   ├── main.cpp                          # Entry point — SDL3 + ImGui window
+│   ├── app/                              # (pending) Application core
+│   ├── ui/                               # (pending) ImGui panels
+│   ├── capture/                          # (pending) Camera/audio input
+│   ├── pipeline/                         # (pending) Translation pipelines
+│   ├── ml/                               # (pending) ONNX Runtime wrapper
+│   ├── output/                           # (pending) Virtual devices
+│   ├── network/                          # (pending) API client
+│   └── utils/                            # Logging, threading, profiling
+├── vendor/
+│   └── imgui/                            # ✅ Git submodule (docking branch)
+├── resources/
+│   ├── models/                           # ML models (downloaded, not committed)
+│   ├── fonts/                            # ImGui fonts
+│   ├── icons/                            # UI icons
+│   └── dictionaries/                     # ASL lexicon (SQLite)
+├── tests/                                # (pending) Google Test suite
 ├── docs/
-│   └── architecture.md
-├── .gitignore
-└── README.md
+│   ├── 00-PROJECT-STATUS.md              # Current state & roadmap
+│   ├── 01-GITHUB-WORKFLOW.md             # How to use git/GitHub
+│   ├── 02-GETTING-STARTED.md             # Setup guide
+│   ├── 03-BUILD-COMMANDS.md              # Build reference
+│   ├── 04-ARCHITECTURE-OVERVIEW.md       # System design
+│   ├── 05-PROJECT-STRUCTURE.md           # Codebase layout
+│   ├── 06-ML-PIPELINE.md                 # ML architecture
+│   ├── 07-APPLICATION-GUIDE.md           # App architecture
+│   ├── 08-API-SERVER.md                  # Backend design
+│   ├── 09-INTEGRATION-GUIDE.md           # Platform integration
+│   ├── 10-MOBILE-ROADMAP.md              # Mobile phases
+│   └── 11-GITHUB-ADMIN.md                # Repo admin reference
+├── CMakeLists.txt                        # Build configuration
+├── vcpkg.json                            # Dependency manifest
+├── .clang-format                         # Code style (Google, C++20)
+├── CONTRIBUTING.md                       # Contribution guidelines
+├── SECURITY.md                           # Vulnerability reporting
+└── CLA.md                                # Contributor License Agreement
 ```
 
 ---
 
-## Dependencies
+## What Works Now ✅
 
-### Acquiring Dependencies
-
-| Library      | Source                                              | Notes                              |
-| ------------ | --------------------------------------------------- | ---------------------------------- |
-| Dear ImGui   | https://github.com/ocornut/imgui (`docking` branch) | Vendor into `third_party/imgui/`   |
-| SDL2         | https://github.com/libsdl-org/SDL/releases          | Use VC dev package (`.lib`+`.dll`) |
-| ONNX Runtime | https://github.com/microsoft/onnxruntime/releases   | Use `onnxruntime-win-x64` package  |
-| OpenCV       | https://opencv.org/releases/                        | Prebuilt Windows binary            |
-
-All third-party libraries should be placed under `third_party/` and are excluded from version control (see `.gitignore`).
+- SDL3 window with OpenGL 3.0 rendering
+- Dear ImGui docking interface with dark theme
+- FPS counter and runtime status display
+- CMake build system (Windows x64 verified)
+- All vcpkg dependencies installed and CMake-resolvable
+- Git submodules (ImGui docking branch)
 
 ---
 
-## UI Layout (Target)
+## What's Pending 🔄
 
-The application UI consists of two primary panels side-by-side within a dockable ImGui layout:
-
-```
-┌──────────────────────────────────────────────────┐
-│  ASL Translator                          [≡] [x] │
-├────────────────────┬─────────────────────────────┤
-│                    │  Translation Output         │
-│   Live Camera      │ ─────────────────────────── │
-│   Feed             │  Detected: [HELLO]          │
-│   (OpenCV → ImGui  │                             │
-│    texture)        │  History:                   │
-│                    │  > HELLO                    │
-│                    │  > MY NAME IS               │
-├────────────────────┴─────────────────────────────┤
-│  Status: Running | FPS: 30 | Model: asl_v1.onnx  │
-└──────────────────────────────────────────────────┘
-```
-
-### UI Components to Implement
-
-- **VideoPanel** — renders an OpenCV frame as an `ImGui::Image()` via a DirectX 11 shader resource view updated each frame
-- **TranslationPanel** — scrollable output log with current detected gesture highlighted
-- **StatusBar** — inference latency, FPS counter, model name, and camera index
-- **Settings Modal** — camera device selection, confidence threshold slider, model file path picker
+| Feature              | Est. Effort | Priority |
+| -------------------- | ----------- | -------- |
+| OpenCV camera capture| 2-3 days    | High     |
+| MediaPipe landmarks  | 1-2 weeks   | High     |
+| ONNX model inference | 3-5 days    | High     |
+| ASL → Text pipeline  | 1-2 weeks   | High     |
+| ImGui panels (6x)    | 2-3 weeks   | High     |
+| Virtual camera/mic   | 2-3 weeks   | Medium   |
+| whisper.cpp (STT)    | 1 week      | Medium   |
+| Piper (TTS)          | 1 week      | Medium   |
+| Backend API server   | 3-4 weeks   | Medium   |
+| Mobile (Android/iOS) | 12+ weeks   | Low      |
 
 ---
 
-## Model
+## Development Workflow
 
-The ONNX model is trained separately (Python/PyTorch or TensorFlow) and exported to ONNX format. It is not included in this repository.
-
-Expected model I/O contract:
-
-| Property     | Value                                      |
-| ------------ | ------------------------------------------ |
-| Input name   | `input`                                    |
-| Input shape  | `[1, N, 3]` — N landmarks × (x, y, z)      |
-| Output name  | `output`                                   |
-| Output shape | `[1, num_classes]` — softmax probabilities |
-
-Place the model at `assets/models/asl_model.onnx` or configure the path at runtime via the Settings panel.
+1. **Read the docs** — start with [docs/00-PROJECT-STATUS.md](docs/00-PROJECT-STATUS.md)
+2. **Set up** — follow [docs/02-GETTING-STARTED.md](docs/02-GETTING-STARTED.md)
+3. **Contribute** — see [docs/01-GITHUB-WORKFLOW.md](docs/01-GITHUB-WORKFLOW.md) and [CONTRIBUTING.md](CONTRIBUTING.md)
+4. **Build** — use [docs/03-BUILD-COMMANDS.md](docs/03-BUILD-COMMANDS.md)
 
 ---
 
-## Build Instructions
+## Repository
 
-1. Clone the repository and populate `third_party/` with the required libraries.
-2. Open `asl-translator.sln` in Visual Studio 2022 (or later).
-3. Select **x64 | Release** (or Debug for development).
-4. Build → **Build Solution** (`Ctrl+Shift+B`).
-5. Ensure all required `.dll` files are present in the output directory (post-build event handles this if configured).
+- **GitHub:** https://github.com/steveappeltantsPXL/ASL-Translator
+- **Branch Strategy:** `main` (stable) ← `develop` (integration) ← `feature/*` (your work)
+- **License:** Contributor License Agreement required (see [CLA.md](CLA.md))
 
 ---
 
-## Roadmap
+## Next Steps
 
-- [ ] Project scaffolding and MSVC build configuration
-- [ ] SDL2 + ImGui + DX11 window initialization
-- [ ] OpenCV webcam capture and frame-to-texture pipeline
-- [ ] ONNX Runtime model loading and inference wrapper
-- [ ] Gesture classification and translation output
-- [ ] Dockable UI layout with VideoPanel and TranslationPanel
-- [ ] Settings and configuration persistence
-- [ ] Model hot-reload support
-- [ ] Sentence-level buffering and word boundary detection
-- [ ] Export/copy translation output
+1. Add camera capture → live video panel
+2. Integrate MediaPipe hand/pose detection
+3. Load ONNX model and run inference
+4. Build ASL → Text → Speech pipeline
+5. Add virtual camera/microphone output
+6. Deploy backend API server
 
----
-
-## License
-
-TBD
-
----
-
-## Contributing
-
-TBD
+See [docs/02-GETTING-STARTED.md](docs/02-GETTING-STARTED.md) for the full roadmap.
