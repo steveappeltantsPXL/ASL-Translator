@@ -68,8 +68,10 @@ endforeach()
 
 # ── vcpkg-managed dependencies ─────────────────────────────────────────────────
 find_package(SDL3 CONFIG REQUIRED)
-find_package(SDL3_image CONFIG REQUIRED)
-find_package(OpenCV CONFIG REQUIRED)
+# Uncomment when image loading (e.g. camera feed textures) is implemented:
+# find_package(SDL3_image CONFIG REQUIRED)
+# Uncomment when CameraCapture (OpenCV) is implemented:
+# find_package(OpenCV CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SQLiteCpp CONFIG REQUIRED)
@@ -78,10 +80,10 @@ find_package(GLEW CONFIG REQUIRED)
 
 # ── ONNX Runtime (vcpkg onnxruntime-gpu ships no CMake config — link manually) ─
 find_path(ONNXRUNTIME_INCLUDE_DIR onnxruntime_cxx_api.h
-    PATHS "${CMAKE_CURRENT_BINARY_DIR}/vcpkg_installed/x64-windows/include"
+    PATHS "${CMAKE_CURRENT_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/include"
     REQUIRED)
 find_library(ONNXRUNTIME_LIB onnxruntime
-    PATHS "${CMAKE_CURRENT_BINARY_DIR}/vcpkg_installed/x64-windows/lib"
+    PATHS "${CMAKE_CURRENT_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/lib"
     REQUIRED)
 message(STATUS "Found ONNX Runtime: ${ONNXRUNTIME_LIB}")
 
@@ -132,11 +134,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     imgui
     SDL3::SDL3
-    SDL3_image::SDL3_image
-    opencv_core
-    opencv_videoio
-    opencv_imgproc
-    opencv_highgui
+    # SDL3_image::SDL3_image  # uncomment when image loading is implemented
+    # opencv_core             # uncomment when CameraCapture is implemented
+    # opencv_videoio
+    # opencv_imgproc
+    # opencv_highgui
     ${ONNXRUNTIME_LIB}
     spdlog::spdlog
     nlohmann_json::nlohmann_json
@@ -146,6 +148,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     # whisper          # uncomment when submodule is added
     # piper            # uncomment when submodule is added
     # MediaPipe::MediaPipe  # uncomment when MediaPipe is configured
+    # protobuf / cpr   # installed via vcpkg, uncomment when API client is implemented
 )
 
 # Windows: link OpenGL + DWM (accent color query)
