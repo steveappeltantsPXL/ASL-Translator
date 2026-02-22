@@ -1,15 +1,22 @@
 cmake_minimum_required(VERSION 3.24)
+
+# ── vcpkg integration ──────────────────────────────────────────────────────────
+# Must be set BEFORE project() so CMake loads the toolchain during compiler init.
+# FORCE overrides any stale value in CMakeCache.txt (e.g. VS bundled vcpkg path).
+if(DEFINED ENV{VCPKG_ROOT})
+    set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        CACHE STRING "vcpkg toolchain" FORCE)
+    # The vcpkg toolchain defaults to ${CMAKE_SOURCE_DIR}/vcpkg_installed, but CLion
+    # installs packages into the build directory. Point it at the right location.
+    set(VCPKG_INSTALLED_DIR "${CMAKE_CURRENT_BINARY_DIR}/vcpkg_installed"
+        CACHE PATH "vcpkg installed directory" FORCE)
+endif()
+
 project(VisearASLTranslator VERSION 0.1.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# ── vcpkg integration ──────────────────────────────────────────────────────────
-if(DEFINED ENV{VCPKG_ROOT})
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-        CACHE STRING "vcpkg toolchain")
-endif()
 
 # ── Platform detection ─────────────────────────────────────────────────────────
 if(WIN32)
@@ -20,8 +27,48 @@ else()
     add_compile_definitions(VISEAR_PLATFORM_LINUX)
 endif()
 
+# ── MSVC Configuration ────────────────────────────────────────────────────────
+if(MSVC)
+    # Debug: Full debug info, no optimization, runtime checks
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Zi /Od /RTC1")
+
+    # RelWithDebInfo: Debug symbols + optimization (for profiling)
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /Zi /O2")
+
+    # Runtime library: Use dynamic multi-threaded (matches vcpkg default)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+
+    # Additional optimizations for profiling accuracy
+    add_compile_options(/fp:precise)  # Precise floating-point for consistent results
+
+    # Treat source files and emitted string literals as UTF-8.
+    # Without this MSVC uses the system code page (CP1252), which silently
+    # corrupts any non-ASCII character (▶ ⏹ ⚙ ● …) in string literals.
+    add_compile_options(/utf-8)
+
+    # Suppress some MSVC warnings (optional)
+    add_compile_options(/W4)  # Warning level 4
+endif()
+
+# ── vcpkg package search path ─────────────────────────────────────────────────
+# Explicitly prepend the vcpkg installed directory to CMAKE_PREFIX_PATH.
+# This is required when CLion's cmake process doesn't inherit VCPKG_ROOT from
+# the system environment (so the vcpkg toolchain above may not have run),
+# and also covers the case where CLion installs packages into the build dir.
+if(NOT DEFINED VCPKG_TARGET_TRIPLET)
+    set(VCPKG_TARGET_TRIPLET "x64-windows")  # default for this Windows x64 project
+endif()
+foreach(_vcpkg_prefix
+        "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}"
+        "${CMAKE_SOURCE_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}")
+    if(EXISTS "${_vcpkg_prefix}")
+        list(PREPEND CMAKE_PREFIX_PATH "${_vcpkg_prefix}")
+    endif()
+endforeach()
+
 # ── vcpkg-managed dependencies ─────────────────────────────────────────────────
 find_package(SDL3 CONFIG REQUIRED)
+find_package(SDL3_image CONFIG REQUIRED)
 find_package(OpenCV CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -68,6 +115,10 @@ target_link_libraries(imgui PUBLIC SDL3::SDL3)
 
 # ── Main application ──────────────────────────────────────────────────────────
 file(GLOB_RECURSE APP_SOURCES "src/*.cpp" "src/*.h")
+# Embed the application icon on Windows via a resource file
+if(WIN32)
+    list(APPEND APP_SOURCES src/app.rc)
+endif()
 add_executable(${PROJECT_NAME} ${APP_SOURCES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -78,6 +129,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     imgui
     SDL3::SDL3
+    SDL3_image::SDL3_image
     opencv_core
     opencv_videoio
     opencv_imgproc
@@ -91,9 +143,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     # MediaPipe::MediaPipe  # uncomment when MediaPipe is configured
 )
 
-# Windows: link OpenGL
+# Windows: link OpenGL + DWM (accent color query)
 if(WIN32)
-    target_link_libraries(${PROJECT_NAME} PRIVATE opengl32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE opengl32 dwmapi)
 endif()
 
 # ── Copy resources to build output directory ──────────────────────────────────
@@ -102,6 +154,15 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/resources)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/resources
             $<TARGET_FILE_DIR:${PROJECT_NAME}>/resources
+    )
+endif()
+
+# ── Copy assets (icons, images) to build output directory ─────────────────────
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/assets)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/src/assets
+            $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
     )
 endif()
 
