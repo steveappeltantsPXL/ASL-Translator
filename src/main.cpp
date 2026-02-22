@@ -129,6 +129,8 @@ int main(int, char**) {
         SDL_Log("Avatar init failed — placeholder will be shown");
     }
 
+    int selectedAnim = 0;  // current animation index for the combo box
+
     bool running = true;
     while (running) {
         SDL_Event event;
@@ -261,6 +263,25 @@ int main(int, char**) {
             ImGui::Spacing();
             ImGui::Text("Confidence:");
             ImGui::ProgressBar(0.8f, ImVec2(-1, 0), "80%");
+            // Animation selector (shown only when model has multiple animations)
+            if (avatarRenderer.animationCount() > 1) {
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Text("Avatar Animation:");
+                if (ImGui::BeginCombo("##AnimCombo",
+                        avatarRenderer.animationName(selectedAnim).c_str())) {
+                    for (int i = 0; i < avatarRenderer.animationCount(); ++i) {
+                        const bool selected = (i == selectedAnim);
+                        if (ImGui::Selectable(
+                                avatarRenderer.animationName(i).c_str(), selected)) {
+                            selectedAnim = i;
+                            avatarRenderer.selectAnimation(i);
+                        }
+                        if (selected) ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+            }
             ImGui::End();
 
             // Captions

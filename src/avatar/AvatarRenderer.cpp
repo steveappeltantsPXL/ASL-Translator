@@ -4,6 +4,7 @@
 #include "SkinnedMesh.h"
 #include "Skeleton.h"
 #include "AnimationPlayer.h"
+#include "AnimStateMachine.h"
 
 #include <GL/glew.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -51,11 +52,19 @@ struct AvatarRenderer::Impl {
     // Animation
     std::unique_ptr<Skeleton>        skeleton;
     std::unique_ptr<AnimationPlayer> animPlayer;
+    AnimStateMachine                 animSM;
     std::vector<Animation>           animations;   // kept alive
     std::vector<JointTRS>            bindPoseTRS;  // reset source each frame
     std::vector<JointTRS>            jointTRS;     // working TRS per frame
     std::vector<glm::mat4>           localTransforms;
     std::vector<glm::mat4>           skinMatrices;
+
+    // Camera auto-framing (computed from mesh AABB)
+    glm::vec3 camTarget_{0.f, 1.f, 0.f};
+    float     camDistance_ = 3.f;
+
+    // Background color
+    glm::vec3 bgColor_{0.12f, 0.12f, 0.12f};
 
     // External pose override from MediaPipe
     bool                  hasPoseOverride = false;
@@ -255,9 +264,35 @@ bool AvatarRenderer::init(const std::string& glbPath) {
     // Animation.
     I.animations  = std::move(model.animations);
     I.animPlayer  = std::make_unique<AnimationPlayer>(numJoints);
+    I.animSM.registerAnimations(I.animations);
     if (!I.animations.empty()) {
         I.animPlayer->setAnimation(I.animations, 0);
-        spdlog::info("Avatar playing animation: '{}'", I.animations[0].name);
+        spdlog::info("Avatar: {} animation(s), playing '{}'",
+                     I.animations.size(), I.animations[0].name);
+    }
+
+    // Compute AABB from all vertex positions for camera auto-framing.
+    {
+        glm::vec3 aabbMin(std::numeric_limits<float>::max());
+        glm::vec3 aabbMax(std::numeric_limits<float>::lowest());
+        bool hasVerts = false;
+        for (const auto& prim : model.primitives) {
+            for (const auto& v : prim.vertices) {
+                aabbMin = glm::min(aabbMin, v.position);
+                aabbMax = glm::max(aabbMax, v.position);
+                hasVerts = true;
+            }
+        }
+        if (hasVerts) {
+            I.camTarget_   = (aabbMin + aabbMax) * 0.5f;
+            float extent   = glm::length(aabbMax - aabbMin);
+            I.camDistance_  = extent * 0.85f;
+            spdlog::info("Avatar AABB: ({:.1f},{:.1f},{:.1f})-({:.1f},{:.1f},{:.1f}), "
+                         "cam distance={:.2f}",
+                         aabbMin.x, aabbMin.y, aabbMin.z,
+                         aabbMax.x, aabbMax.y, aabbMax.z,
+                         I.camDistance_);
+        }
     }
 
     // Create a minimal FBO (resized on first render call).
@@ -281,18 +316,19 @@ void AvatarRenderer::render(float width, float height, float dt) {
     // ── Render to FBO ─────────────────────────────────────────────────────────
     glBindFramebuffer(GL_FRAMEBUFFER, I.fbo);
     glViewport(0, 0, I.fboW, I.fboH);
-    glClearColor(0.12f, 0.12f, 0.12f, 1.f);
+    glClearColor(I.bgColor_.r, I.bgColor_.g, I.bgColor_.b, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-    // ── Camera ────────────────────────────────────────────────────────────────
+    // ── Camera (auto-framed from mesh AABB) ────────────────────────────────
     float aspect  = static_cast<float>(I.fboW) / static_cast<float>(I.fboH);
-    glm::mat4 proj = glm::perspective(glm::radians(45.f), aspect, 0.01f, 100.f);
-    glm::vec3 camPos{0.f, 1.5f, 3.f};
-    glm::mat4 view = glm::lookAt(camPos, glm::vec3{0.f, 1.f, 0.f}, glm::vec3{0.f, 1.f, 0.f});
+    float farPlane = std::max(100.f, I.camDistance_ * 10.f);
+    glm::mat4 proj = glm::perspective(glm::radians(45.f), aspect, 0.01f, farPlane);
+    glm::vec3 camPos = I.camTarget_ + glm::vec3{0.f, 0.f, I.camDistance_};
+    glm::mat4 view = glm::lookAt(camPos, I.camTarget_, glm::vec3{0.f, 1.f, 0.f});
     glm::mat4 model(1.f);
 
     // ── Update skeleton pose ──────────────────────────────────────────────────
@@ -302,9 +338,9 @@ void AvatarRenderer::render(float width, float height, float dt) {
         I.skinMatrices = I.poseOverride;
         I.hasPoseOverride = false;
     } else {
-        // Reset to bind pose, then apply animation channels.
+        // Reset to bind pose, then apply animation via state machine.
         I.jointTRS = I.bindPoseTRS;
-        I.animPlayer->tick(dt, I.animations, I.jointTRS);
+        I.animSM.update(dt, *I.animPlayer, I.animations, I.jointTRS);
 
         // Compose TRS → local transform matrices.
         for (int i = 0; i < n; ++i) {
@@ -387,6 +423,24 @@ int AvatarRenderer::jointCount() const {
 
 bool AvatarRenderer::isReady() const {
     return impl_ && impl_->ready;
+}
+
+int AvatarRenderer::animationCount() const {
+    return impl_ ? impl_->animSM.animationCount() : 0;
+}
+
+std::string AvatarRenderer::animationName(int index) const {
+    return impl_ ? impl_->animSM.animationName(index) : std::string{};
+}
+
+void AvatarRenderer::selectAnimation(int index) {
+    if (impl_ && impl_->ready) {
+        impl_->animSM.requestAnim(index);
+    }
+}
+
+void AvatarRenderer::setBackgroundColor(const glm::vec3& color) {
+    if (impl_) impl_->bgColor_ = color;
 }
 
 }  // namespace avatar

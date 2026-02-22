@@ -44,6 +44,14 @@ public:
     [[nodiscard]] int  jointCount() const;
     [[nodiscard]] bool isReady()    const;
 
+    // Animation query / control.
+    [[nodiscard]] int animationCount() const;
+    [[nodiscard]] std::string animationName(int index) const;
+    void selectAnimation(int index);
+
+    // Set the background clear color for the avatar FBO.
+    void setBackgroundColor(const glm::vec3& color);
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
