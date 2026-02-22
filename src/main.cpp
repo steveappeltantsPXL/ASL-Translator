@@ -1,15 +1,16 @@
+#include "avatar/AvatarRenderer.h"
+#include "capture/CameraCapture.h"
+
 #include <SDL3/SDL.h>
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
-#include "avatar/AvatarRenderer.h"
 
 #ifdef _WIN32
-#include <windows.h>
 #include <dwmapi.h>
+#include <windows.h>
 #endif
 #include <GL/gl.h>
-
 #include <spdlog/spdlog.h>
 
 // Responsive breakpoint: switch to compact mode below this width
@@ -131,6 +132,9 @@ int main(int, char**) {
         spdlog::info("Avatar init failed — placeholder will be shown");
     }
 
+    capture::CameraCapture cameraCapture;
+    bool capturing = false;
+
     int selectedAnim = 0;  // current animation index for the combo box
 
     bool running = true;
@@ -144,13 +148,16 @@ int main(int, char**) {
 
         // Render avatar to its FBO before starting the ImGui frame.
         if (avatarOk) {
-            const float aw = io.DisplaySize.x < COMPACT_WIDTH
-                ? io.DisplaySize.x - 16.f
-                : io.DisplaySize.x * 0.40f - 16.f;
+            const float aw = io.DisplaySize.x < COMPACT_WIDTH ? io.DisplaySize.x - 16.f
+                                                              : io.DisplaySize.x * 0.40f - 16.f;
             const float ah = io.DisplaySize.x < COMPACT_WIDTH
-                ? io.DisplaySize.y - 60.f - 35.f
-                : io.DisplaySize.y - 40.f - 80.f - 35.f;
+                                 ? io.DisplaySize.y - 60.f - 35.f
+                                 : io.DisplaySize.y - 40.f - 80.f - 35.f;
             avatarRenderer.render(aw, ah, io.DeltaTime);
+        }
+
+        if (capturing) {
+            cameraCapture.grabFrame();
         }
 
         ImGui_ImplOpenGL3_NewFrame();
@@ -172,7 +179,8 @@ int main(int, char**) {
             if (avatarOk) {
                 ImGui::Image(avatarRenderer.getTexture(),
                              ImGui::GetContentRegionAvail(),
-                             ImVec2(0, 1), ImVec2(1, 0));
+                             ImVec2(0, 1),
+                             ImVec2(1, 0));
             } else {
                 render_avatar_placeholder();
             }
@@ -195,16 +203,27 @@ int main(int, char**) {
             ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, 40.f));
             ImGui::Begin("##Toolbar", nullptr, toolbar_flags);
             ImGui::PushStyleColor(ImGuiCol_Button, accent_color);
-            if (ImGui::Button("► Start Capture")) { /* ... */
+            if (ImGui::Button("► Start Capture")) {
+                if (!capturing) {
+                    capturing = cameraCapture.open(0);
+                }
             }
             ImGui::SameLine();
-            if (ImGui::Button("■ Stop")) { /* ... */
+            if (ImGui::Button("■ Stop")) {
+                if (capturing) {
+                    cameraCapture.close();
+                    capturing = false;
+                }
             }
             ImGui::PopStyleColor();
             ImGui::SameLine();
             ImGui::Spacing();
             ImGui::SameLine();
-            ImGui::TextColored(ImVec4(0.1f, 0.73f, 0.61f, 1.0f), "● Running");
+            if (capturing) {
+                ImGui::TextColored(ImVec4(0.1f, 0.73f, 0.61f, 1.0f), "● Capturing");
+            } else {
+                ImGui::TextDisabled("● Idle");
+            }
             ImGui::SameLine();
             ImGui::Text("  %.0f fps", io.Framerate);
             ImGui::End();
@@ -224,21 +243,25 @@ int main(int, char**) {
             ImGui::SetNextWindowPos(ImVec2(0, toolbar_height), ImGuiCond_Always);
             ImGui::SetNextWindowSize(ImVec2(cam_width, top_panels_height), ImGuiCond_Always);
             ImGui::Begin("Camera Feed", nullptr, locked);
-            const ImVec2 cam_avail = ImGui::GetContentRegionAvail();
-            const ImVec2 cam_p = ImGui::GetCursorScreenPos();
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-            dl->AddRectFilled(cam_p,
-                              ImVec2(cam_p.x + cam_avail.x, cam_p.y + cam_avail.y),
-                              IM_COL32(30, 30, 30, 255),
-                              4.f);
-            dl->AddRect(cam_p,
-                        ImVec2(cam_p.x + cam_avail.x, cam_p.y + cam_avail.y),
-                        IM_COL32(80, 80, 80, 255),
-                        4.f);
-            dl->AddText(ImVec2(cam_p.x + cam_avail.x / 2 - 20, cam_p.y + cam_avail.y / 2 - 7),
-                        IM_COL32(160, 160, 160, 255),
-                        "No Camera");
-            ImGui::Dummy(cam_avail);
+            if (capturing) {
+                ImGui::Image(cameraCapture.getTexture(), ImGui::GetContentRegionAvail());
+            } else {
+                const ImVec2 cam_avail = ImGui::GetContentRegionAvail();
+                const ImVec2 cam_p = ImGui::GetCursorScreenPos();
+                ImDrawList* dl = ImGui::GetWindowDrawList();
+                dl->AddRectFilled(cam_p,
+                                  ImVec2(cam_p.x + cam_avail.x, cam_p.y + cam_avail.y),
+                                  IM_COL32(30, 30, 30, 255),
+                                  4.f);
+                dl->AddRect(cam_p,
+                            ImVec2(cam_p.x + cam_avail.x, cam_p.y + cam_avail.y),
+                            IM_COL32(80, 80, 80, 255),
+                            4.f);
+                dl->AddText(ImVec2(cam_p.x + cam_avail.x / 2 - 20, cam_p.y + cam_avail.y / 2 - 7),
+                            IM_COL32(160, 160, 160, 255),
+                            "No Camera");
+                ImGui::Dummy(cam_avail);
+            }
             ImGui::End();
 
             // ASL Avatar
@@ -248,7 +271,8 @@ int main(int, char**) {
             if (avatarOk) {
                 ImGui::Image(avatarRenderer.getTexture(),
                              ImGui::GetContentRegionAvail(),
-                             ImVec2(0, 1), ImVec2(1, 0));
+                             ImVec2(0, 1),
+                             ImVec2(1, 0));
             } else {
                 render_avatar_placeholder();
             }
@@ -271,15 +295,15 @@ int main(int, char**) {
                 ImGui::Separator();
                 ImGui::Text("Avatar Animation:");
                 if (ImGui::BeginCombo("##AnimCombo",
-                        avatarRenderer.animationName(selectedAnim).c_str())) {
+                                      avatarRenderer.animationName(selectedAnim).c_str())) {
                     for (int i = 0; i < avatarRenderer.animationCount(); ++i) {
                         const bool selected = (i == selectedAnim);
-                        if (ImGui::Selectable(
-                                avatarRenderer.animationName(i).c_str(), selected)) {
+                        if (ImGui::Selectable(avatarRenderer.animationName(i).c_str(), selected)) {
                             selectedAnim = i;
                             avatarRenderer.selectAnimation(i);
                         }
-                        if (selected) ImGui::SetItemDefaultFocus();
+                        if (selected)
+                            ImGui::SetItemDefaultFocus();
                     }
                     ImGui::EndCombo();
                 }
@@ -303,6 +327,7 @@ int main(int, char**) {
         SDL_GL_SwapWindow(window);
     }
 
+    cameraCapture.close();
     avatarRenderer.shutdown();  // must happen while GL context is still current
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
