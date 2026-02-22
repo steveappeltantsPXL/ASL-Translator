@@ -181,6 +181,7 @@ bash tools/setup-hooks.sh
 | `pre-commit` | Auto-formats staged `.cpp`/`.h`/`.hpp` files with `clang-format` and re-stages them |
 | `commit-msg` | Rejects messages that don't follow Conventional Commits (`feat(scope): ...`) |
 | `pre-push` | Runs `cmake --build` and blocks push if the build fails (skips if build dir missing) |
+|-----|---------------|
 
 ## ML pipeline (not yet implemented)
 
