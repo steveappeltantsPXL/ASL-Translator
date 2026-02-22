@@ -185,9 +185,12 @@ bash tools/setup-hooks.sh
 ## CI
 
 `.github/workflows/ci.yml` runs on every PR targeting `develop` or `main`:
+
 | Job | What it checks |
 |-----|---------------|
 | `format-check` | All `src/` files pass `clang-format --dry-run --Werror` |
+| `commit-lint` | Every commit in the PR follows Conventional Commits |
+| `branch-policy` | PRs targeting `main` must come from `release/*` or `hotfix/*` branches |
 
 ## ML pipeline (not yet implemented)
 
