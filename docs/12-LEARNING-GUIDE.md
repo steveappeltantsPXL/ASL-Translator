@@ -12,7 +12,7 @@
 2. [The Technology Stack — What Each Piece Is](#2-the-technology-stack--what-each-piece-is)
 3. [The Build System — How the Project Is Compiled](#3-the-build-system--how-the-project-is-compiled)
 4. [The Vendor Submodule — Dear ImGui](#4-the-vendor-submodule--dear-imgui)
-5. [The Only Source File — src/main.cpp Line by Line](#5-the-only-source-file--srcmaincpp-line-by-line)
+5. [The Entry Point — src/main.cpp Line by Line](#5-the-entry-point--srcmaincpp-line-by-line)
 6. [What Is Already Built vs What Is Planned](#6-what-is-already-built-vs-what-is-planned)
 7. [The Planned Architecture](#7-the-planned-architecture)
 8. [Where You Can Start Contributing](#8-where-you-can-start-contributing)
@@ -38,10 +38,8 @@ The app injects its output into a **virtual camera** and **virtual microphone**,
 so it looks like any regular webcam to the video call software.
 
 **Current state of the project:**
-The application window opens and a basic UI framework runs. That is all.
-The camera capture, sign recognition, speech-to-text, text-to-ASL rendering,
-and virtual device output are all designed and documented, but the C++ code for
-them has not been written yet. You are joining at an early, clean starting point.
+The application window opens with a responsive UI layout (toolbar, camera feed placeholder, avatar panel, captions, controls) and a fully implemented 3D avatar renderer with skinned mesh animation.
+The camera capture, sign recognition, speech-to-text, and virtual device output are designed and documented but not yet implemented. The avatar rendering pipeline (GLTF loading, skeleton, animation with crossfade blending) is complete.
 
 ---
 
@@ -338,9 +336,10 @@ This static library (`imgui.lib`) is then linked into the main executable.
 
 ---
 
-## 5. The Only Source File — src/main.cpp Line by Line
+## 5. The Entry Point — src/main.cpp Line by Line
 
-This is the **only C++ source file in the project**. It is 88 lines long and
+This is the **entry point** of the project. The `src/avatar/` directory contains
+additional source files implementing the 3D avatar renderer. The main file is
 produces the window you see when you run the app. Every line is explained below.
 
 ```cpp
@@ -454,14 +453,14 @@ ImGui initialization:
 
 ```cpp
     ImGui_ImplSDL3_InitForOpenGL(window, gl_context);
-    ImGui_ImplOpenGL3_Init("#version 130");
+    ImGui_ImplOpenGL3_Init("#version 330 core");
 ```
 
 Backend initialization:
 - `ImGui_ImplSDL3_InitForOpenGL` — tells ImGui's SDL3 backend which window
   and GL context to use for reading input
-- `ImGui_ImplOpenGL3_Init("#version 130")` — tells the OpenGL backend what
-  GLSL (shader language) version to use. Version 130 corresponds to OpenGL 3.0.
+- `ImGui_ImplOpenGL3_Init("#version 330 core")` — tells the OpenGL backend what
+  GLSL (shader language) version to use. Version 330 core corresponds to OpenGL 3.3.
 
 ---
 
@@ -606,9 +605,10 @@ This table gives you an honest snapshot of the project right now.
 | CMake build system | ✅ Complete | Works on Windows x64, all packages found |
 | vcpkg dependencies | ✅ Installed | 9 packages, all in build dir |
 | SDL3 window + GL context | ✅ Working | In `main.cpp` |
-| Dear ImGui dockspace | ✅ Working | In `main.cpp` |
-| Status panel (FPS) | ✅ Working | In `main.cpp` |
+| Dear ImGui responsive layout | ✅ Working | Desktop + mobile modes in `main.cpp` |
+| Toolbar + Controls panels | ✅ Working | In `main.cpp` |
 | Dear ImGui vendor submodule | ✅ Clean import | No modifications made |
+| 3D Avatar renderer | ✅ Working | Skinned mesh, skeleton, animation blending in `src/avatar/` |
 | Documentation (12 guides) | ✅ Complete | Architecture, ML, API, mobile all designed |
 | GitHub templates & workflow | ✅ Complete | PR/issue templates, branch strategy |
 | Application class | ❌ Not written | Planned: wraps the SDL/GL/ImGui lifecycle |

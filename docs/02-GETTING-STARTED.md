@@ -104,11 +104,11 @@ mkdir -p vendor
 # Dear ImGui (docking branch for dockable panels)
 git submodule add -b docking https://github.com/ocornut/imgui.git vendor/imgui
 
-# whisper.cpp
-git submodule add https://github.com/ggerganov/whisper.cpp.git vendor/whisper.cpp
+# whisper.cpp — NOT YET NEEDED (commented out in CMakeLists.txt)
+# git submodule add https://github.com/ggerganov/whisper.cpp.git vendor/whisper.cpp
 
-# Piper TTS
-git submodule add https://github.com/rhasspy/piper.git vendor/piper
+# Piper TTS — NOT YET NEEDED (commented out in CMakeLists.txt)
+# git submodule add https://github.com/rhasspy/piper.git vendor/piper
 ```
 
 ### Step 3: Install vcpkg Dependencies
@@ -121,6 +121,12 @@ $VCPKG_ROOT/vcpkg install
 This installs: SDL3, OpenCV, ONNX Runtime (GPU), spdlog, nlohmann-json, SQLiteCpp, Google Test, cpr (HTTP client), and protobuf.
 
 ### Step 4: Download ML Models
+
+> **NOT YET AVAILABLE:** The `download-models.sh` script does not exist yet.
+> ML models are not needed for the current build. Skip this step.
+>
+> **For the avatar:** See Section 5 in `docs/03-BUILD-COMMANDS.md` for how to
+> obtain a Mixamo GLTF model and place it at `resources/models/avatar/avatar.glb`.
 
 ```bash
 # Download pre-trained models to resources/models/
@@ -254,7 +260,7 @@ int main(int, char**) {
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
     ImGui_ImplSDL3_InitForOpenGL(window, gl);
-    ImGui_ImplOpenGL3_Init("#version 130");
+    ImGui_ImplOpenGL3_Init("#version 330 core");
 
     bool running = true;
     while (running) {

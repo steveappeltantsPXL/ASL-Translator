@@ -2,6 +2,8 @@
 
 ## Directory Layout
 
+**Note: The directory tree below shows the PLANNED full structure. See the "Current Structure" section at the end for what actually exists today.**
+
 ```
 visear-asl-translator/
 │
@@ -158,6 +160,8 @@ visear-asl-translator/
 ## CMake Configuration
 
 ### Root CMakeLists.txt
+
+**Note: The CMakeLists.txt below is the PLANNED final version. The actual CMakeLists.txt differs — MediaPipe, whisper.cpp, and Piper are commented out, and ONNX Runtime uses find_path/find_library instead of find_package. See the real CMakeLists.txt in the repository root.**
 
 ```cmake
 cmake_minimum_required(VERSION 3.24)
@@ -445,6 +449,30 @@ cmake --build build
 3. Set **Settings → Build → CMake** → add `-DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake`
 4. CLion will index and configure automatically
 5. Select the `VisearASLTranslator` target and press Run
+
+---
+
+## Current Source Structure (as of February 2026)
+
+Only the following source files exist today:
+
+```
+src/
+├── main.cpp              — SDL3 init, ImGui render loop, UI layout
+├── app.rc                — Windows resource: embeds app icon
+├── assets/
+│   └── app_icon.ico      — Multi-resolution application icon
+└── avatar/               — Tier 2 rigged 3D avatar (fully implemented)
+    ├── AvatarRenderer.h/.cpp   — pImpl façade: GLEW init, FBO, per-frame render
+    ├── AvatarShaders.h         — GLSL 3.30 skinned-mesh vertex + Phong fragment
+    ├── GltfLoader.h/.cpp       — tinygltf GLB loader: mesh, skeleton, animations
+    ├── SkinnedMesh.h/.cpp      — VAO/VBO/IBO upload for skinned geometry
+    ├── Skeleton.h/.cpp         — Joint hierarchy, computeSkinMatrices()
+    ├── AnimationPlayer.h/.cpp  — Keyframe sampler with crossfade blending
+    └── AnimStateMachine.h/.cpp — Animation state controller with named transitions
+```
+
+Everything else in the directory tree above is planned but not yet written.
 
 ---
 

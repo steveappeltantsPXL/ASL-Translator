@@ -407,7 +407,7 @@ timer.renderImGui();  // Shows avg/min/max per stage
 
 ## Model Versioning and Updates
 
-Models are versioned and managed via the backend API (see `05-API-SERVER.md`):
+Models are versioned and managed via the backend API (see `08-API-SERVER.md`):
 
 ```json
 // resources/models/model_registry.json
