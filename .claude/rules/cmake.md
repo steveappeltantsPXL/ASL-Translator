@@ -15,6 +15,8 @@
 
 ## find_package patterns
 - Standard vcpkg packages: `find_package(SDL3 CONFIG REQUIRED)`
+- **OpenCV:** `find_package(OpenCV CONFIG REQUIRED)` then link via `${OpenCV_LIBS}`.
+  Do not list individual `opencv_*` targets — vcpkg version-suffixes the filenames.
 - **ONNX Runtime exception:** ships no CMake config — use `find_path` / `find_library`
   as already set up in `CMakeLists.txt`. Never use `find_package(onnxruntime CONFIG REQUIRED)`.
 - ImGui is a vendored static lib in `vendor/imgui/` (docking branch) — never add it to vcpkg
