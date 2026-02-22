@@ -1,0 +1,3 @@
+// Windows resource file — embeds the application icon into the .exe
+// ICON_ID 1 is the "main" icon Windows picks up for Explorer, taskbar, title bar
+1 ICON "assets\\app_icon.ico"
