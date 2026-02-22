@@ -5,8 +5,8 @@
 #include "avatar/AvatarRenderer.h"
 
 #ifdef _WIN32
-#include <dwmapi.h>
 #include <windows.h>
+#include <dwmapi.h>
 #endif
 #include <GL/gl.h>
 
