@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this project is
 
 Real-time bidirectional ASL ↔ English translation — native C++20 desktop app (Windows primary).
-The app has a **responsive ImGui UI shell** with a **live Tier 2 rigged 3D avatar renderer** (OpenGL FBO + GLTF skinned mesh). Camera capture, MediaPipe, ONNX inference, and speech pipelines are not yet wired up.
+The app has a **responsive ImGui UI shell** with a **live Tier 2 rigged 3D avatar renderer** (OpenGL FBO + GLTF skinned mesh) and **live camera capture** (OpenCV → GL texture). MediaPipe, ONNX inference, and speech pipelines are not yet wired up.
 See `docs/00-PROJECT-STATUS.md` for what is and isn't built.
 
 ## Build
@@ -41,9 +41,9 @@ Enforced by `.clang-format` (Google base, C++20):
 
 ## Architecture
 
-Three conceptual layers (avatar output layer is implemented; others pending):
+Three conceptual layers (input camera + avatar output layers are implemented; others pending):
 
-**Input** → camera (`opencv_videoio`), microphone (SDL audio / PortAudio), text input (ImGui)
+**Input** → **camera (`CameraCapture`, implemented)**, microphone (SDL audio / PortAudio), text input (ImGui)
 **Processing** → MediaPipe landmarks → ONNX gesture classifier → sentence assembly → whisper.cpp STT / Piper TTS
 **Output** → ImGui captions, **Tier 2 rigged 3D avatar** (implemented), virtual camera (OBS VCam), virtual microphone (VB-Audio)
 
@@ -53,10 +53,13 @@ Six translation pipelines: ASL→Text, ASL→Speech, Speech→Text, Speech→ASL
 
 ```
 src/
-├── main.cpp              — SDL3 init, ImGui render loop, UI layout, AvatarRenderer integration
+├── main.cpp              — SDL3 init, ImGui render loop, UI layout, AvatarRenderer + CameraCapture integration
 ├── app.rc                — Windows resource: embeds app_icon.ico into the .exe
 ├── assets/
 │   └── app_icon.ico      — multi-resolution ICO (16/32/48/256/512 px)
+├── capture/              — Camera input (complete)
+│   ├── CameraCapture.h   — pImpl façade: no GL/OpenCV includes, safe for main.cpp
+│   └── CameraCapture.cpp — cv::VideoCapture + GL texture upload (GLEW, not imgui backend)
 └── avatar/               — Tier 2 rigged 3D avatar (complete)
     ├── AvatarRenderer.h/.cpp   — pImpl façade: GLEW init, FBO, per-frame render, setPose()
     ├── AvatarShaders.h         — GLSL 3.30 skinned-mesh vertex + Phong fragment (inline)
@@ -94,15 +97,17 @@ training/             — Python/PyTorch training pipeline (separate from C++ ap
 Every frame in `main.cpp`:
 ```
 avatarRenderer.render(panelW, panelH, io.DeltaTime)   ← FBO render BEFORE ImGui frame
+cameraCapture.grabFrame()                              ← GL texture upload (if capturing)
 ImGui_ImplOpenGL3_NewFrame / ImGui_ImplSDL3_NewFrame / ImGui::NewFrame
-[build UI — avatar panel calls ImGui::Image(avatarRenderer.getTexture(), avail, {0,1}, {1,0})]
+[build UI — avatar: ImGui::Image(getTexture(), avail, {0,1},{1,0})]
+[build UI — camera: ImGui::Image(getTexture(), avail)  ← no UV flip (top-left origin)]
 ImGui::Render → glClear → ImGui_ImplOpenGL3_RenderDrawData → SDL_GL_SwapWindow
 ```
 
 ### Desktop layout (width ≥ 640 px)
 
 ```
-y=0,  h=40   ##Toolbar (NoTitleBar)  ► Start Capture / ■ Stop / ● Running / fps
+y=0,  h=40   ##Toolbar (NoTitleBar)  ► Start Capture / ■ Stop / ● Capturing|Idle / fps
 y=40, h=top  Camera Feed (35%) | ASL Avatar (40%) | Controls (25%, full height)
              ─────────────────────────────────────┘
 y=bot, h=80  Captions (75% width, Controls overlaps bottom-right)
@@ -130,6 +135,7 @@ Embedded via `src/app.rc` — no runtime loading needed. When replacing the icon
 
 - `vcpkg.json` `builtin-baseline` must be a 40-char commit SHA, not a date. Get it with `git -C C:\vcpkg rev-parse HEAD`.
 - `onnxruntime-gpu` ships no CMake config. Use `find_path`/`find_library` as already done in `CMakeLists.txt` — never `find_package(onnxruntime CONFIG REQUIRED)`.
+- OpenCV is linked via `${OpenCV_LIBS}` (set by `find_package(OpenCV CONFIG REQUIRED)`) — do not list individual `opencv_*` targets, as vcpkg version-suffixes the library filenames.
 - Adding a vcpkg dependency: add to `vcpkg.json` **and** add `find_package` + `target_link_libraries` in `CMakeLists.txt`.
 - ImGui is a vendored static lib (`vendor/imgui/`, docking branch). Never add it to vcpkg.
 - `vendor/tinygltf/` is committed directly (not a submodule). Contains `tiny_gltf.h` and `stb_image.h`.
@@ -142,16 +148,16 @@ Embedded via `src/app.rc` — no runtime loading needed. When replacing the icon
 - `/utf-8` compile flag is mandatory. Without it MSVC corrupts non-ASCII string literals (► ● ⚙ render as `?`).
 - Supplementary-plane emoji (U+1F000+) cannot render in ImGui — use BMP Unicode symbols (≤ U+FFFF) or `ImDrawList` primitives.
 - The accent color (toolbar button tint) is read at startup via `DwmGetColorizationColor` into `ImVec4 accent_color`. `dwmapi` is linked in `CMakeLists.txt`.
-- Runtime library is `MultiThreadedDLL` (`/MD`) — must match vcpkg triplet `x64-windows`.
+- Runtime library is `MultiThreaded$<$<CONFIG:Debug>:Debug>DLL` — `/MDd` for Debug, `/MD` for Release. Must match vcpkg triplet `x64-windows` (which builds debug libs with `/MDd`). OpenCV's `debug_build_guard` namespace requires `_DEBUG` to be consistent between consumer and DLL.
 - `ImTextureID` is `ImU64` in this ImGui build — use `static_cast<ImTextureID>(texId)`, never `reinterpret_cast` or `(void*)`.
 
 ## GL loader isolation (avatar system)
 
 `imgui_impl_opengl3.cpp` includes its own `imgui_impl_opengl3_loader.h` which defines GL functions and macros. GLEW defines the same symbols. **They must never appear in the same translation unit.**
 
-The avatar system uses pImpl to enforce this:
-- `AvatarRenderer.h` — no GL includes; safe to include from `main.cpp`
-- `AvatarRenderer.cpp` — includes `<GL/glew.h>`; never include ImGui backends here
+Both the avatar and capture systems use pImpl to enforce this:
+- `AvatarRenderer.h` / `CameraCapture.h` — no GL includes; safe to include from `main.cpp`
+- `AvatarRenderer.cpp` / `CameraCapture.cpp` — include `<GL/glew.h>`; never include ImGui backends here
 
 **Rule:** Any new file that uses GLEW must not include `<imgui_impl_opengl3.h>` (directly or transitively).
 
