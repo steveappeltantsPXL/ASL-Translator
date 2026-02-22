@@ -184,7 +184,10 @@ bash tools/setup-hooks.sh
 
 ## CI
 
+`.github/workflows/ci.yml` runs on every PR targeting `develop` or `main`:
+| Job | What it checks |
 |-----|---------------|
+| `format-check` | All `src/` files pass `clang-format --dry-run --Werror` |
 
 ## ML pipeline (not yet implemented)
 
