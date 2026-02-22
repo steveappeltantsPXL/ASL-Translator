@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# pre-commit hook: auto-format staged C++ files with clang-format
+
+# Find clang-format
+if command -v clang-format &>/dev/null; then
+    CLANG_FORMAT="clang-format"
+elif [ -x "/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/bin/clang-format.exe" ]; then
+    CLANG_FORMAT="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/bin/clang-format.exe"
+else
+    echo "WARNING: clang-format not found, skipping format check"
+    exit 0
+fi
+
+# Collect staged C++ files (only added/modified, not deleted)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|h|hpp)$')
+
+if [ -z "$STAGED_FILES" ]; then
+    exit 0
+fi
+
+# Check which files need formatting
+NEEDS_FORMAT=()
+for file in $STAGED_FILES; do
+    if [ -f "$file" ]; then
+        if ! "$CLANG_FORMAT" --dry-run --Werror "$file" &>/dev/null; then
+            NEEDS_FORMAT+=("$file")
+        fi
+    fi
+done
+
+if [ ${#NEEDS_FORMAT[@]} -eq 0 ]; then
+    exit 0
+fi
+
+# Auto-fix: format and re-stage
+echo "pre-commit: auto-formatting ${#NEEDS_FORMAT[@]} file(s):"
+for file in "${NEEDS_FORMAT[@]}"; do
+    echo "  $file"
+    "$CLANG_FORMAT" -i "$file"
+    git add "$file"
+done
+
+echo "pre-commit: files formatted and re-staged"
+exit 0

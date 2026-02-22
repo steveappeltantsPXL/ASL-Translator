@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# pre-push hook: verify the project builds before pushing
+
+BUILD_DIR="cmake-build-debug-msvc"
+
+if [ ! -d "$BUILD_DIR" ]; then
+    echo "pre-push: build directory '$BUILD_DIR' not found, skipping build check"
+    exit 0
+fi
+
+echo "pre-push: verifying build..."
+if ! cmake --build "$BUILD_DIR" --config Debug; then
+    echo ""
+    echo "ERROR: Build failed. Push rejected."
+    echo "Fix build errors before pushing."
+    exit 1
+fi
+
+echo "pre-push: build succeeded"
+exit 0

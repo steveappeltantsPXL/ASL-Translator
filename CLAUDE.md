@@ -167,6 +167,21 @@ resources/models/avatar/avatar.glb
 ```
 Without it the app runs normally with the teal placeholder. See `docs/00-PROJECT-STATUS.md → Immediate Next Steps` for how to obtain a Mixamo model.
 
+## Git hooks
+
+Local hooks live in `.githooks/` (checked into the repo). Activate them after cloning:
+
+```bash
+bash tools/setup-hooks.sh
+# or manually: git config core.hooksPath .githooks
+```
+
+| Hook | What it does |
+|------|-------------|
+| `pre-commit` | Auto-formats staged `.cpp`/`.h`/`.hpp` files with `clang-format` and re-stages them |
+| `commit-msg` | Rejects messages that don't follow Conventional Commits (`feat(scope): ...`) |
+| `pre-push` | Runs `cmake --build` and blocks push if the build fails (skips if build dir missing) |
+
 ## ML pipeline (not yet implemented)
 
 Models will live in `resources/models/` as ONNX files. Input shape for the gesture classifier: `[1, 60, 225]` (batch, frames, landmarks).
