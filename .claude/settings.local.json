@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /c/Users/steve/AppDev/Projects/Visear-ASL-Translator && cmake --build cmake-build-debug-msvc --config Debug 2>&1)",
+      "Bash(powershell:*)",
+      "Bash(cd \"C:/Users/steve/AppDev/Projects/Visear-ASL-Translator\" && cmake --build cmake-build-debug-msvc --target VisearASLTranslator --config Debug 2>&1)"
+    ],
+    "ask": []
+  }
+}
