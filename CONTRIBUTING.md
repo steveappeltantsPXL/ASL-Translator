@@ -105,7 +105,7 @@ first), or lack a test plan will be asked to update before review begins.
 
 ## Code Style
 
-- **C++17** standard.
+- **C++20** standard.
 - Follow the existing code structure and naming conventions already in the project.
 - Keep functions focused and small; prefer clarity over cleverness.
 - No magic numbers — use named constants.
