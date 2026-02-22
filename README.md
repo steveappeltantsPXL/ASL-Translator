@@ -8,7 +8,7 @@ A real-time, bidirectional American Sign Language (ASL) translation system. Tran
 
 ## Quick Links
 
-- **Status & Architecture:** [docs/00-PROJECT-STATUS.md](docs/00-PROJECT-STATUS.md)
+- **Status & Architecture:** [docs/00-PROJECT-STATUS.md]() and  [docs/04-ARCHITECTURE-OVERVIEW.md]()
 - **Getting Started:** [docs/02-GETTING-STARTED.md](docs/02-GETTING-STARTED.md)
 - **Build Commands:** [docs/03-BUILD-COMMANDS.md](docs/03-BUILD-COMMANDS.md)
 - **GitHub Workflow:** [docs/01-GITHUB-WORKFLOW.md](docs/01-GITHUB-WORKFLOW.md)
@@ -188,3 +188,9 @@ Visear-ASL-Translator/
 6. Deploy backend API server
 
 See [docs/02-GETTING-STARTED.md](docs/02-GETTING-STARTED.md) for the full roadmap.
+
+---
+
+*Where thoughts breathe and silence speaks.*
+
+Made with ❤️ by Steve Appeltants

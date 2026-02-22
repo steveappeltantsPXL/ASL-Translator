@@ -1,7 +1,7 @@
 # Project Status — Visear ASL Translator
 
-**Last updated:** 2026-02-20
-**Phase:** Foundation complete — repo administration configured, ready for feature development
+**Last updated:** 2026-02-21
+**Phase:** Foundation complete — responsive UI shell implemented, ready for feature wiring
 
 This document captures the actual current state of the project: what is built,
 what works, what is pending, and what to do next. It is the starting point for
@@ -11,17 +11,17 @@ any developer picking up the project.
 
 ## Environment (Verified)
 
-| Component         | Version / Location                                         | Status     |
-| ----------------- | ---------------------------------------------------------- | ---------- |
-| OS                | Windows 11 Home 10.0.26200                                 | ✅          |
-| Visual Studio     | 2022 Community v17.14                                      | ✅          |
-| MSVC Toolset      | v143 (14.44.35207), Hostx64/x64                            | ✅          |
-| CMake             | 3.31.6                                                     | ✅          |
-| Ninja             | 1.12.1 (installed, not used on Windows)                    | ✅          |
-| Python            | 3.14.2                                                     | ✅          |
-| Git               | Latest                                                     | ✅          |
-| vcpkg             | `C:\vcpkg` — baseline `3af1d1e60af2b2abf55760538cd607829029b07a` | ✅ |
-| VCPKG_ROOT        | `C:\vcpkg` (user environment variable)                     | ✅          |
+| Component     | Version / Location                                               | Status |
+|---------------|------------------------------------------------------------------|--------|
+| OS            | Windows 11 Home 10.0.26200                                       | ✅      |
+| Visual Studio | 2022 Community v17.14                                            | ✅      |
+| MSVC Toolset  | v143 (14.44.35207), Hostx64/x64                                  | ✅      |
+| CMake         | 3.31.6                                                           | ✅      |
+| Ninja         | 1.12.1 (installed, not used on Windows)                          | ✅      |
+| Python        | 3.14.2                                                           | ✅      |
+| Git           | Latest                                                           | ✅      |
+| vcpkg         | `C:\vcpkg` — baseline `3af1d1e60af2b2abf55760538cd607829029b07a` | ✅      |
+| VCPKG_ROOT    | `C:\vcpkg` (user environment variable)                           | ✅      |
 
 ---
 
@@ -46,7 +46,7 @@ Visear-ASL-Translator/
 │       └── config.yml                  ✅ Blank issues disabled; links Discussions
 │
 ├── src/
-│   └── main.cpp                ✅ SDL3 + OpenGL3 + ImGui window running
+│   └── main.cpp                ✅ SDL3 + OpenGL3 + ImGui — responsive layout (desktop + mobile)
 │
 ├── vendor/
 │   └── imgui/                  ✅ Docking branch submodule cloned
@@ -82,19 +82,19 @@ Visear-ASL-Translator/
 
 All packages installed at `build/vcpkg_installed/x64-windows/`.
 
-| Package              | Version    | Notes                                           |
-| -------------------- | ---------- | ----------------------------------------------- |
-| sdl3                 | 3.2.26     | Window, input, OpenGL context                   |
-| opencv4              | 4.11.0     | Camera capture, image processing                |
-| onnxruntime-gpu      | 1.19.2     | ML inference — no CMake config, linked manually |
-| spdlog               | 1.16.0     | Structured logging                              |
-| nlohmann-json        | 3.12.0     | JSON config parsing                             |
-| sqlitecpp            | 3.3.3      | SQLite wrapper (ASL dictionary)                 |
-| gtest                | 1.17.0     | Unit testing (not yet wired up)                 |
-| cpr                  | 1.12.0     | HTTP client for API calls                       |
-| protobuf             | 5.29.5     | Serialization                                   |
-| abseil               | 20250814.1 | (dependency of protobuf/onnxruntime)            |
-| curl                 | 8.17.0     | (dependency of cpr)                             |
+| Package         | Version    | Notes                                           |
+|-----------------|------------|-------------------------------------------------|
+| sdl3            | 3.2.26     | Window, input, OpenGL context                   |
+| opencv4         | 4.11.0     | Camera capture, image processing                |
+| onnxruntime-gpu | 1.19.2     | ML inference — no CMake config, linked manually |
+| spdlog          | 1.16.0     | Structured logging                              |
+| nlohmann-json   | 3.12.0     | JSON config parsing                             |
+| sqlitecpp       | 3.3.3      | SQLite wrapper (ASL dictionary)                 |
+| gtest           | 1.17.0     | Unit testing (not yet wired up)                 |
+| cpr             | 1.12.0     | HTTP client for API calls                       |
+| protobuf        | 5.29.5     | Serialization                                   |
+| abseil          | 20250814.1 | (dependency of protobuf/onnxruntime)            |
+| curl            | 8.17.0     | (dependency of cpr)                             |
 
 ---
 
@@ -104,9 +104,17 @@ All packages installed at `build/vcpkg_installed/x64-windows/`.
 - [x] **All vcpkg dependencies** installed and CMake-resolvable
 - [x] **Dear ImGui (docking branch)** compiled as static library (`imgui.lib`)
 - [x] **SDL3 window** with OpenGL 3.0 context — opens, handles events, closes cleanly
-- [x] **Dear ImGui rendering** — fullscreen dockspace, dark theme, docking enabled
-- [x] **FPS counter** visible in the main panel
-- [x] **`VisearASLTranslator.exe`** builds and runs from `build\Debug\`
+- [x] **Responsive ImGui UI shell** — layout switches between desktop and mobile modes
+    - Desktop (≥ 640 px): pinned toolbar + Camera Feed / ASL Avatar / Controls panels +
+      Captions strip; all panels stretch with the window every frame (`ImGuiCond_Always`)
+    - Mobile (< 640 px): full-width ASL Avatar fills the window above a 60 px captions strip
+- [x] **Toolbar** — "Start Capture" / "Stop" buttons, live FPS, `● Running` status
+- [x] **All UI labels are plain ASCII** — no emoji or supplementary-plane characters anywhere;
+  ImGui's font system cannot rasterise them and they render as `?`
+- [x] **ASL Avatar placeholder** — teal rect + ILY hand sign drawn with `ImDrawList` primitives
+- [x] **Segoe UI font** loaded at 15 px with extended BMP glyph ranges covering `●`
+- [x] **`/utf-8` MSVC flag** — source file and string literals treated as UTF-8 throughout
+- [x] **`VisearASLTranslator.exe`** builds and runs from `cmake-build-debug-msvc\Debug\`
 - [x] **GitHub repo administration** — PR/issue templates, branch protection docs,
   contributor guide, security policy, CLA, `develop` + `release/v0.1.0` branches pushed
 
@@ -114,21 +122,21 @@ All packages installed at `build/vcpkg_installed/x64-windows/`.
 
 ## What Is Not Yet Implemented
 
-| Feature                        | Doc Reference         | Notes                                          |
-| ------------------------------ | --------------------- | ---------------------------------------------- |
-| App module (`app/`)            | `07-APPLICATION-GUIDE.md` | Application class, config system           |
-| UI panels (`ui/panels/`)       | `07-APPLICATION-GUIDE.md` | Camera, caption, control, debug panels     |
-| OpenCV camera capture          | `07-APPLICATION-GUIDE.md` | OpenCV is installed, just not wired up     |
-| MediaPipe hand/pose landmarks  | `06-ML-PIPELINE.md`   | Not yet integrated — needs Bazel or prebuilts  |
-| ONNX model loading             | `06-ML-PIPELINE.md`   | Runtime installed, session code not written    |
-| ASL → Text pipeline            | `06-ML-PIPELINE.md`   | Full pipeline stub pending                     |
-| whisper.cpp (STT)              | `06-ML-PIPELINE.md`   | Submodule not yet added                        |
-| Piper TTS                      | `06-ML-PIPELINE.md`   | Submodule not yet added                        |
-| Virtual camera output          | `09-INTEGRATION-GUIDE.md` | DirectShow (Windows), pending              |
-| Virtual microphone output      | `09-INTEGRATION-GUIDE.md` | VB-Audio / PulseAudio, pending             |
-| Backend API server             | `08-API-SERVER.md`    | FastAPI design complete, not yet built         |
-| Unit tests (`tests/`)          | `05-PROJECT-STRUCTURE.md` | GTest installed, no test files yet         |
-| ML model training pipeline     | `06-ML-PIPELINE.md`   | Python scripts not yet written                 |
+| Feature                       | Doc Reference             | Notes                                         |
+|-------------------------------|---------------------------|-----------------------------------------------|
+| App module (`app/`)           | `07-APPLICATION-GUIDE.md` | Application class, config system              |
+| UI panels (`ui/panels/`)      | `07-APPLICATION-GUIDE.md` | Camera, caption, control, debug panels        |
+| OpenCV camera capture         | `07-APPLICATION-GUIDE.md` | OpenCV is installed, just not wired up        |
+| MediaPipe hand/pose landmarks | `06-ML-PIPELINE.md`       | Not yet integrated — needs Bazel or prebuilts |
+| ONNX model loading            | `06-ML-PIPELINE.md`       | Runtime installed, session code not written   |
+| ASL → Text pipeline           | `06-ML-PIPELINE.md`       | Full pipeline stub pending                    |
+| whisper.cpp (STT)             | `06-ML-PIPELINE.md`       | Submodule not yet added                       |
+| Piper TTS                     | `06-ML-PIPELINE.md`       | Submodule not yet added                       |
+| Virtual camera output         | `09-INTEGRATION-GUIDE.md` | DirectShow (Windows), pending                 |
+| Virtual microphone output     | `09-INTEGRATION-GUIDE.md` | VB-Audio / PulseAudio, pending                |
+| Backend API server            | `08-API-SERVER.md`        | FastAPI design complete, not yet built        |
+| Unit tests (`tests/`)         | `05-PROJECT-STRUCTURE.md` | GTest installed, no test files yet            |
+| ML model training pipeline    | `06-ML-PIPELINE.md`       | Python scripts not yet written                |
 
 ---
 
@@ -154,6 +162,18 @@ All packages installed at `build/vcpkg_installed/x64-windows/`.
    Subsequent runs use the binary cache at `%LOCALAPPDATA%\vcpkg\archives` and
    complete in seconds.
 
+6. **MSVC silently corrupts non-ASCII string literals without `/utf-8`.**
+   MSVC defaults to the system code page (CP1252 on Western Windows). Any Unicode
+   character above U+007F in a string literal (e.g. `▶`, `●`, `⚙`) gets mangled and
+   ImGui renders it as `?`. The fix is `add_compile_options(/utf-8)` in CMakeLists.txt,
+   which is already present. Never remove it.
+
+7. **Supplementary-plane emoji (U+1F000+) cannot render in ImGui.**
+   ImGui uses stb_truetype/FreeType for font rasterisation. Neither supports colour font
+   formats (CBDT/CBLC, SVGinOT) used by emoji fonts like Segoe UI Emoji. Characters
+   such as 📷 🤟 💬 will always show as `?`. Use BMP Unicode symbols (≤ U+FFFF) or
+   draw custom graphics with `ImDrawList` primitives instead.
+
 ---
 
 ## Immediate Next Steps
@@ -163,10 +183,10 @@ All packages installed at `build/vcpkg_installed/x64-windows/`.
 **Priority:** Must complete before merging features to `develop`/`main`
 
 - [ ] Configure **branch protection rules** on `main` and `develop` in GitHub Settings
-  - Require PR review (1 approval)
-  - Require status checks passing
-  - Dismiss stale reviews on new push
-  - Restrict force pushes and deletions
+    - Require PR review (1 approval)
+    - Require status checks passing
+    - Dismiss stale reviews on new push
+    - Restrict force pushes and deletions
 - [ ] Set **team permissions** (Admin / Maintain / Write / Read) for each collaborator
 - [ ] Enable **Dependabot alerts** and **secret scanning** in GitHub Settings → Code security
 - [ ] Add any **repository secrets** (API keys, model URLs) under Settings → Secrets and variables
@@ -260,6 +280,8 @@ See `docs/03-BUILD-COMMANDS.md` for the full reference including error fixes.
    .\build\Debug\VisearASLTranslator.exe
    ```
 
-5. **You should see:** A black window with a white FPS counter in the top-left corner.
+5. **You should see:** A window with a toolbar (▶ Start Capture, ⏹ Stop, ● Running, FPS),
+   three coupled panels (Camera Feed / ASL Avatar / Controls), and a Captions strip at the
+   bottom. Resize below 640 px wide to switch to mobile mode (Avatar + Captions only).
 
 **For detailed setup, build errors, and troubleshooting,** see `docs/02-GETTING-STARTED.md`.

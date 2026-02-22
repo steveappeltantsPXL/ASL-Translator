@@ -278,43 +278,71 @@ private:
 
 ## Dear ImGui UI Layout
 
-The UI is organized as dockable panels using ImGui's docking branch:
+The UI is fully responsive, switching layout at `COMPACT_WIDTH = 640 px` every frame
+based on `io.DisplaySize.x`. All panels are locked (`NoMove | NoResize`) and recalculate
+their position and size every frame (`ImGuiCond_Always`), so they stretch with the window.
+
+### Desktop mode (width ≥ 640 px)
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  [Menu Bar]  File | Mode | Settings | Help                   │
-├──────────────────────────────────────────────────────────────┤
-│                                  │                           │
-│      Camera Feed Panel           │    Control Panel          │
-│      (live video +               │    ┌───────────────────┐  │
-│       landmark overlay)          │    │ Mode: [dropdown]  │  │
-│                                  │    │ Camera: [select]  │  │
-│                                  │    │ Confidence: 0.7   │  │
-│                                  │    │ Virtual Cam: [✓]  │  │
-│      [640x480 video texture]     │    │ Virtual Mic: [✓]  │  │
-│                                  │    │ TTS Voice: [...]  │  │
-│                                  │    └───────────────────┘  │
-│                                  │                           │
-│                                  │    Dictionary Panel       │
-│                                  │    ┌───────────────────┐  │
-│                                  │    │ Search: [______]  │  │
-│                                  │    │ Recent signs:     │  │
-│                                  │    │ - HELLO           │  │
-│                                  │    │ - THANK-YOU       │  │
-│                                  │    └───────────────────┘  │
-├──────────────────────────────────┴───────────────────────────┤
-│                                                              │
-│    Caption / Output Panel                                    │
-│    ┌──────────────────────────────────────────────────────┐  │
-│    │ [14:32:01] Hello, how are you today?                 │  │
-│    │ [14:32:05] I am fine, thank you.                     │  │
-│    │ [14:32:08] ▌  (live recognition indicator)           │  │
-│    └──────────────────────────────────────────────────────┘  │
-│                                                              │
-├──────────────────────────────────────────────────────────────┤
-│  [Status Bar]  FPS: 60 | Pipeline: 42ms | GPU: CUDA | Mode   │
-└──────────────────────────────────────────────────────────────┘
+┌─ Toolbar ───────────────────────────────────────────────────┐  40 px, full width
+│  [Start Capture]  [Stop]   ● Running   60 fps               │
+├─ Camera Feed ──────┬─ ASL Avatar ──────┬─ Controls ─────────┤  fills remaining height
+│  35% width         │  40% width        │  25% width         │  minus captions strip
+│                    │                   │                    │
+│  [dark rect]       │  ILY hand drawn   │  Language: EN      │
+│   640x480          │  with DrawList    │  Mode: ASL -> TX   │
+│                    │  primitives       │  Confidence: [bar] │
+├────────────────────┴───────────────────┤                    │
+│  Captions  (75% width, 80 px high)     │  (controls extend) │
+│  Recognized text will appear here...   │                    │
+└────────────────────────────────────────┴────────────────────┘
 ```
+
+- Columns are exact fractions: `cam = w×0.35`, `avatar = w×0.40`, `controls = w×0.25`
+- Captions sit flush at `y = toolbar_height + top_panels_height`, spanning Camera + Avatar columns
+- Font: **Segoe UI 15 px** with BMP glyph ranges 0x2000–0x26FF so `●` renders correctly
+- **All labels are plain ASCII.** ImGui's stb_truetype rasteriser cannot render
+  supplementary-plane emoji (U+1F000+). They always display as `?` regardless of font.
+  The ILY hand sign is drawn with `ImDrawList` primitives instead.
+
+### Mobile / compact mode (width < 640 px)
+
+```
+┌─ ASL Avatar ──────────────────────┐  fills height - 60 px, full width
+│                                   │
+│  ILY hand (DrawList)              │
+│  ASL Avatar -- coming soon        │
+│                                   │
+├───────────────────────────────────┤  60 px fixed strip
+│  Recognized text here...  ● 60fps │
+└───────────────────────────────────┘
+```
+
+- Two panels only: avatar (top) and captions strip (bottom 60 px)
+- Both panels use `ImGuiCond_Always` — they track window size on every resize
+- No toolbar in compact mode; status dot + FPS live in the captions strip
+
+### Font setup
+
+```cpp
+// Loaded once after ImGui::CreateContext(), before SDL3/GL init
+static const ImWchar glyph_ranges[] = {
+    0x0020, 0x00FF,   // Basic Latin + Latin Supplement
+    0x2000, 0x206F,   // General Punctuation
+    0x2190, 0x23FF,   // Arrows + Misc Technical
+    0x25A0, 0x26FF,   // Geometric Shapes (●) + Misc Symbols
+    0,
+};
+io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/segoeui.ttf", 15.f, &cfg, glyph_ranges);
+```
+
+> **Note:** `/utf-8` is set in `CMakeLists.txt` under the MSVC block so MSVC reads the
+> source file as UTF-8. Without this flag, any character above U+007F in a string literal
+> is silently corrupted by the system code page (CP1252).
+
+> **Emoji rule:** Never use Unicode characters above U+FFFF in ImGui string literals.
+> Use plain ASCII labels and `ImDrawList` primitives for any graphical representation.
 
 ### Video Texture Rendering
 
@@ -396,8 +424,8 @@ void ControlPanel::render(PipelineManager& pipeline) {
 
 Runtime configuration stored as JSON, loaded on startup, editable via UI:
 
-```json
 // resources/default_config.json
+```json
 {
   "camera": {
     "device_index": 0,
@@ -441,7 +469,7 @@ Runtime configuration stored as JSON, loaded on startup, editable via UI:
 
 ## Error Handling Strategy
 
-The application uses a consistent error handling approach across all subsystems:
+The application uses a consistent error-handling approach across all subsystems:
 
 ```cpp
 // src/utils/Result.h
