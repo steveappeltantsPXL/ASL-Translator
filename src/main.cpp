@@ -10,6 +10,8 @@
 #endif
 #include <GL/gl.h>
 
+#include <spdlog/spdlog.h>
+
 // Responsive breakpoint: switch to compact mode below this width
 constexpr float COMPACT_WIDTH = 640.0f;
 
@@ -43,7 +45,7 @@ void render_avatar_placeholder() {
 
 int main(int, char**) {
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        SDL_Log("SDL_Init failed: %s", SDL_GetError());
+        spdlog::error("SDL_Init failed: {}", SDL_GetError());
         return 1;
     }
 
@@ -54,7 +56,7 @@ int main(int, char**) {
     SDL_Window* window =
         SDL_CreateWindow("Visear Translator", 1280, 720, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
     if (!window) {
-        SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
+        spdlog::error("SDL_CreateWindow failed: {}", SDL_GetError());
         SDL_Quit();
         return 1;
     }
@@ -126,7 +128,7 @@ int main(int, char**) {
     avatar::AvatarRenderer avatarRenderer;
     const bool avatarOk = avatarRenderer.init("resources/models/avatar/avatar.glb");
     if (!avatarOk) {
-        SDL_Log("Avatar init failed — placeholder will be shown");
+        spdlog::info("Avatar init failed — placeholder will be shown");
     }
 
     int selectedAnim = 0;  // current animation index for the combo box
