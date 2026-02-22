@@ -20,6 +20,14 @@ cmake-build-*/
 *.VC.db
 *.VC.opendb
 ipch/
+# MSBuild output folders inside legacy VS project directories
+**/x64/
+**/x86/
+# MSBuild incremental build artifacts
+*.recipe
+*.lastbuildstate
+*.tlog
+*.idb
 
 # ── IDE — VS Code ─────────────────────────────────────────────────────────────
 .vscode/

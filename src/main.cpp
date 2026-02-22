@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
+#include "avatar/AvatarRenderer.h"
 
 #ifdef _WIN32
 #include <dwmapi.h>
@@ -47,7 +48,8 @@ int main(int, char**) {
     }
 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
     SDL_Window* window =
         SDL_CreateWindow("Visear Translator", 1280, 720, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
@@ -119,7 +121,13 @@ int main(int, char**) {
     apply_custom_style();
 
     ImGui_ImplSDL3_InitForOpenGL(window, gl);
-    ImGui_ImplOpenGL3_Init("#version 130");
+    ImGui_ImplOpenGL3_Init("#version 330 core");
+
+    avatar::AvatarRenderer avatarRenderer;
+    const bool avatarOk = avatarRenderer.init("resources/models/avatar/avatar.glb");
+    if (!avatarOk) {
+        SDL_Log("Avatar init failed — placeholder will be shown");
+    }
 
     bool running = true;
     while (running) {
@@ -128,6 +136,17 @@ int main(int, char**) {
             ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT)
                 running = false;
+        }
+
+        // Render avatar to its FBO before starting the ImGui frame.
+        if (avatarOk) {
+            const float aw = io.DisplaySize.x < COMPACT_WIDTH
+                ? io.DisplaySize.x - 16.f
+                : io.DisplaySize.x * 0.40f - 16.f;
+            const float ah = io.DisplaySize.x < COMPACT_WIDTH
+                ? io.DisplaySize.y - 60.f - 35.f
+                : io.DisplaySize.y - 40.f - 80.f - 35.f;
+            avatarRenderer.render(aw, ah, io.DeltaTime);
         }
 
         ImGui_ImplOpenGL3_NewFrame();
@@ -146,7 +165,13 @@ int main(int, char**) {
             ImGui::SetNextWindowPos(ImVec2(0, 0));
             ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, avatar_height));
             ImGui::Begin("##ASL_Avatar_Mobile", nullptr, panel_flags);
-            render_avatar_placeholder();
+            if (avatarOk) {
+                ImGui::Image(avatarRenderer.getTexture(),
+                             ImGui::GetContentRegionAvail(),
+                             ImVec2(0, 1), ImVec2(1, 0));
+            } else {
+                render_avatar_placeholder();
+            }
             ImGui::End();
 
             ImGui::SetNextWindowPos(ImVec2(0, avatar_height));
@@ -216,7 +241,13 @@ int main(int, char**) {
             ImGui::SetNextWindowPos(ImVec2(cam_width, toolbar_height), ImGuiCond_Always);
             ImGui::SetNextWindowSize(ImVec2(avatar_width, top_panels_height), ImGuiCond_Always);
             ImGui::Begin("ASL Avatar", nullptr, locked);
-            render_avatar_placeholder();
+            if (avatarOk) {
+                ImGui::Image(avatarRenderer.getTexture(),
+                             ImGui::GetContentRegionAvail(),
+                             ImVec2(0, 1), ImVec2(1, 0));
+            } else {
+                render_avatar_placeholder();
+            }
             ImGui::End();
 
             // Controls — full height so it reaches the bottom edge
@@ -249,6 +280,7 @@ int main(int, char**) {
         SDL_GL_SwapWindow(window);
     }
 
+    avatarRenderer.shutdown();  // must happen while GL context is still current
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();

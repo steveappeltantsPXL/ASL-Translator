@@ -73,6 +73,8 @@ find_package(OpenCV CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SQLiteCpp CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
+find_package(GLEW CONFIG REQUIRED)
 
 # ── ONNX Runtime (vcpkg onnxruntime-gpu ships no CMake config — link manually) ─
 find_path(ONNXRUNTIME_INCLUDE_DIR onnxruntime_cxx_api.h
@@ -123,6 +125,7 @@ add_executable(${PROJECT_NAME} ${APP_SOURCES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/vendor/tinygltf
     ${ONNXRUNTIME_INCLUDE_DIR}
 )
 
@@ -138,6 +141,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     spdlog::spdlog
     nlohmann_json::nlohmann_json
     SQLiteCpp
+    glm::glm
+    GLEW::GLEW
     # whisper          # uncomment when submodule is added
     # piper            # uncomment when submodule is added
     # MediaPipe::MediaPipe  # uncomment when MediaPipe is configured

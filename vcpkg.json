@@ -12,6 +12,8 @@
     "sqlitecpp",
     "gtest",
     "cpr",
-    "protobuf"
+    "protobuf",
+    "glm",
+    "glew"
   ]
 }
