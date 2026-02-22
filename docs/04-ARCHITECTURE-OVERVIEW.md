@@ -46,7 +46,7 @@ The system supports four core translation pipelines. Users select the active pip
 ```
 ┌───────────────────────────────────────────────────────────────────┐
 │                    DESKTOP APPLICATION (C++)                      │
-│                    Dear ImGui + SDL3 + OpenGL                     │
+│                    Dear ImGui + SDL3 + OpenGL 3.3                 │
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐  │
 │  │                    INPUT LAYER                              │  │
@@ -56,7 +56,6 @@ The system supports four core translation pipelines. Users select the active pip
 │  │  │              │  │  PortAudio)  │  │                  │   │  │
 │  │  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘   │  │
 │  └─────────┼─────────────────┼───────────────────┼─────────────┘  │
-│            │                 │                   │                │
 │            │                 │                   │                │
 │  ┌─────────▼─────────────────▼───────────────────▼─────────────┐  │
 │  │                  PROCESSING LAYER                           │  │
@@ -73,9 +72,9 @@ The system supports four core translation pipelines. Users select the active pip
 │  │                   OUTPUT LAYER                              │  │
 │  │                                                             │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │  │
-│  │  │ Text Display │  │ TTS Engine   │  │ ASL Visual Out   │   │  │
-│  │  │ Captions on  │  │ (Piper/      │  │ Gloss text or    │   │  │
-│  │  │ video + UI   │  │  Sherpa-onnx)│  │ Avatar animation │   │  │
+│  │  │ Text Display │  │ TTS Engine   │  │ ASL Avatar       │   │  │
+│  │  │ Captions on  │  │ (Piper/      │  │ Rigged 3D mesh   │   │  │
+│  │  │ video + UI   │  │  Sherpa-onnx)│  │ driven by pose   │   │  │
 │  │  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘   │  │
 │  └─────────┼─────────────────┼───────────────────┼─────────────┘  │
 │            │                 │                   │                │
@@ -103,23 +102,54 @@ The system supports four core translation pipelines. Users select the active pip
 
 ---
 
+## Avatar Renderer Architecture
+
+The ASL Avatar panel uses a dedicated OpenGL rendering pipeline, isolated from ImGui's
+own GL loader via the pImpl pattern:
+
+```
+Each frame (before ImGui::NewFrame):
+  AvatarRenderer::render(panelW, panelH, dt)
+  │
+  ├─ Resize FBO if panel dimensions changed
+  ├─ glBindFramebuffer(FBO) → glViewport → glClear
+  ├─ AnimationPlayer::tick() — sample keyframes (linear T/S, slerp R)
+  ├─ Compose TRS → local transforms → Skeleton::computeSkinMatrices()
+  ├─ glUniformMatrix4fv(u_BoneMatrices[100]) — skinned mesh shader
+  ├─ Draw each SkinnedMesh (VAO/VBO with glVertexAttribIPointer for bone IDs)
+  └─ glBindFramebuffer(0) — restore default
+
+ImGui "ASL Avatar" panel:
+  ImGui::Image(avatarRenderer.getTexture(), avail, {0,1}, {1,0})
+                                                    ↑ UV flip (GL y-origin)
+```
+
+When MediaPipe is wired up, `AvatarRenderer::setPose(span<mat4>)` accepts final
+skin matrices directly, bypassing the animation system for one frame.
+
+---
+
 ## Technology Stack Summary
 
-| Layer                  | Technology                            | Purpose                               |
-| ---------------------- | ------------------------------------- | ------------------------------------- |
-| UI Framework           | Dear ImGui + SDL3 + OpenGL            | Real-time GUI, windowing, input       |
-| Camera                 | OpenCV 4.x (C++)                      | Frame capture, preprocessing          |
-| Pose Estimation        | MediaPipe C++                         | Hand/body/face landmark extraction    |
-| Gesture Classification | ONNX Runtime C++                      | Run trained sign language models      |
-| Speech-to-Text         | whisper.cpp                           | Local, offline speech recognition     |
-| Text-to-Speech         | Piper TTS / Sherpa-onnx               | Local, offline speech synthesis       |
-| NLP Post-processing    | Custom C++ + ICU                      | Grammar correction, sentence assembly |
-| Virtual Camera         | OBS VCam / v4l2loopback / CoreMediaIO | Video output to other apps            |
-| Virtual Microphone     | VB-Audio / BlackHole / PulseAudio     | Audio output to other apps            |
-| Build System           | CMake                                 | Cross-platform builds                 |
-| Package Manager        | vcpkg                                 | C++ dependency management             |
-| IDE                    | CLion                                 | Primary development environment       |
-| ML Training            | Python + PyTorch (separate)           | Model training and ONNX export        |
+| Layer                  | Technology                            | Status    | Purpose                               |
+| ---------------------- | ------------------------------------- | --------- | ------------------------------------- |
+| UI Framework           | Dear ImGui + SDL3 + OpenGL 3.3 core   | ✅ Built   | Real-time GUI, windowing, input       |
+| Avatar Renderer        | OpenGL FBO + GLSL 3.30 + tinygltf     | ✅ Built   | Rigged 3D humanoid, idle animation    |
+| Math Library           | glm                                   | ✅ Built   | Vectors, matrices, quaternions        |
+| GL Extension Loader    | GLEW                                  | ✅ Built   | FBO, VAO, VBO, glVertexAttribIPointer |
+| GLTF Loader            | tinygltf (vendored header-only)       | ✅ Built   | GLB model + skeleton + animations     |
+| Camera                 | OpenCV 4.x (C++)                      | ⏳ Pending | Frame capture, preprocessing          |
+| Pose Estimation        | MediaPipe C++                         | ⏳ Pending | Hand/body/face landmark extraction    |
+| Gesture Classification | ONNX Runtime C++                      | ⏳ Pending | Run trained sign language models      |
+| Speech-to-Text         | whisper.cpp                           | ⏳ Pending | Local, offline speech recognition     |
+| Text-to-Speech         | Piper TTS / Sherpa-onnx               | ⏳ Pending | Local, offline speech synthesis       |
+| NLP Post-processing    | Custom C++ + ICU                      | ⏳ Pending | Grammar correction, sentence assembly |
+| Virtual Camera         | OBS VCam / v4l2loopback / CoreMediaIO | ⏳ Pending | Video output to other apps            |
+| Virtual Microphone     | VB-Audio / BlackHole / PulseAudio     | ⏳ Pending | Audio output to other apps            |
+| Build System           | CMake                                 | ✅ Built   | Cross-platform builds                 |
+| Package Manager        | vcpkg                                 | ✅ Built   | C++ dependency management             |
+| IDE                    | CLion                                 | ✅ Built   | Primary development environment       |
+| ML Training            | Python + PyTorch (separate)           | ⏳ Pending | Model training and ONNX export        |
 
 ---
 
@@ -139,10 +169,12 @@ The system supports four core translation pipelines. Users select the active pip
 
 | Document                  | Contents                                                        |
 | ------------------------- | --------------------------------------------------------------- |
-| `02-PROJECT-STRUCTURE.md` | CLion project layout, CMake configuration, directory structure  |
-| `03-ML-PIPELINE.md`       | Machine learning architecture, training workflow, model details |
-| `04-APPLICATION-GUIDE.md` | Desktop app architecture, pipeline implementation, ImGui UI     |
-| `05-API-SERVER.md`        | Backend API design, analytics, model management                 |
-| `06-INTEGRATION-GUIDE.md` | Virtual camera/mic, platform integration, bidirectional flow    |
-| `07-MOBILE-ROADMAP.md`    | Mobile strategy, NDK/iOS approach, shared code plan             |
-| `08-GETTING-STARTED.md`   | Environment setup, first build, development workflow            |
+| `00-PROJECT-STATUS.md`    | Current build state, what works, what's pending                 |
+| `02-GETTING-STARTED.md`   | Environment setup, first build, development workflow            |
+| `03-BUILD-COMMANDS.md`    | CMake configure/build reference with error fixes                |
+| `05-PROJECT-STRUCTURE.md` | CLion project layout, CMake configuration, directory structure  |
+| `06-ML-PIPELINE.md`       | Machine learning architecture, training workflow, model details |
+| `07-APPLICATION-GUIDE.md` | Desktop app architecture, pipeline implementation, ImGui UI     |
+| `08-API-SERVER.md`        | Backend API design, analytics, model management                 |
+| `09-INTEGRATION-GUIDE.md` | Virtual camera/mic, platform integration, bidirectional flow    |
+| `10-MOBILE-ROADMAP.md`    | Mobile strategy, NDK/iOS approach, shared code plan             |

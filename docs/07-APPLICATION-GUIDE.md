@@ -9,17 +9,20 @@ main()
 SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)
   │
   ▼
-Create SDL Window + OpenGL Context
+Create SDL Window + OpenGL 3.3 Core Context
   │
   ▼
-Initialize Dear ImGui (SDL3 + OpenGL3 backend)
+Initialize Dear ImGui (SDL3 + OpenGL3 backend, GLSL #version 330 core)
   │
   ▼
-Initialize subsystems:
+Initialize AvatarRenderer (GLEW + FBO + GLTF model + shaders)
+  │
+  ▼
+Initialize subsystems (planned):
   ├── CameraCapture (OpenCV)
   ├── AudioCapture (SDL_Audio)
   ├── ONNXRuntime (load models)
-  ├── MediaPipe (landmark extractor)
+  ├── MediaPipe (landmark extractor → feeds AvatarRenderer::setPose())
   ├── WhisperEngine (STT)
   ├── TTSEngine (Piper)
   ├── VirtualCamera (platform-specific)
@@ -28,53 +31,87 @@ Initialize subsystems:
   │
   ▼
 Main Loop:
-  ┌──────────────────────────────────────────┐
-  │  1. SDL_PollEvent (input handling)       │
-  │  2. PipelineManager.tick()               │
-  │     └── runs active translation pipeline │
-  │  3. ImGui::NewFrame()                    │
-  │  4. Render UI panels                     │
-  │  5. ImGui::Render()                      │
-  │  6. SDL_GL_SwapWindow()                  │
-  └──────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────┐
+  │  1. SDL_PollEvent (input handling)           │
+  │  2. PipelineManager.tick()                   │
+  │     └── runs active translation pipeline     │
+  │  3. AvatarRenderer::render(w, h, dt)         │  ← renders to FBO before ImGui
+  │  4. ImGui::NewFrame()                        │
+  │  5. Render UI panels                         │
+  │     └── "ASL Avatar": ImGui::Image(FBO tex)  │
+  │  6. ImGui::Render()                          │
+  │  7. SDL_GL_SwapWindow()                      │
+  └──────────────────────────────────────────────┘
   │
   ▼ (on quit)
-Cleanup: release cameras, models, virtual devices
+avatarRenderer.shutdown()   ← must happen while GL context is current
+ImGui_ImplOpenGL3_Shutdown()
+SDL_GL_DestroyContext()
 SDL_Quit()
 ```
 
 ---
 
-## Main Entry Point
+## Main Entry Point (current)
+
+The entire application currently lives in `src/main.cpp`. The planned `Application`
+class refactor is a Phase 2 task. The avatar system (`src/avatar/`) is the first
+extracted subsystem.
 
 ```cpp
-// src/main.cpp
-#include "app/Application.h"
-#include "utils/Logger.h"
-#include <cstdlib>
+// src/main.cpp — current structure (abbreviated)
+#include "avatar/AvatarRenderer.h"
 
-int main(int argc, char* argv[]) {
-    Logger::init("visear", spdlog::level::info);
+int main(int, char**) {
+    SDL_Init(SDL_INIT_VIDEO);
 
-    Application app;
-    if (!app.initialize(argc, argv)) {
-        LOG_ERROR("Failed to initialize application");
-        return EXIT_FAILURE;
+    // GL 3.3 core — required for GLSL 3.30 (avatar shaders)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+    SDL_Window* window = SDL_CreateWindow("Visear Translator", 1280, 720,
+                                          SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+    SDL_GLContext gl = SDL_GL_CreateContext(window);
+
+    ImGui_ImplOpenGL3_Init("#version 330 core");
+
+    // Avatar renderer — must init after GL context is current
+    avatar::AvatarRenderer avatarRenderer;
+    bool avatarOk = avatarRenderer.init("resources/models/avatar/avatar.glb");
+
+    while (running) {
+        // 1. Avatar renders to its FBO before ImGui starts the frame
+        avatarRenderer.render(panelW, panelH, io.DeltaTime);
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
+        ImGui::NewFrame();
+
+        // 2. Display FBO texture in the avatar panel
+        ImGui::Begin("ASL Avatar", nullptr, locked);
+        ImGui::Image(avatarRenderer.getTexture(),
+                     ImGui::GetContentRegionAvail(),
+                     ImVec2(0, 1), ImVec2(1, 0));  // UV flip: GL y-origin
+        ImGui::End();
+
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        SDL_GL_SwapWindow(window);
     }
 
-    app.run();  // Blocks until quit
-    app.shutdown();
-
-    return EXIT_SUCCESS;
+    avatarRenderer.shutdown();  // GL resources — before SDL_GL_DestroyContext
+    ImGui_ImplOpenGL3_Shutdown();
+    SDL_GL_DestroyContext(gl);
 }
 ```
 
 ---
 
-## Application Core
+## Planned Application Core
 
 ```cpp
-// src/app/Application.h
+// src/app/Application.h (Phase 2)
 #pragma once
 #include <SDL3/SDL.h>
 #include "ui/UIManager.h"
@@ -83,6 +120,7 @@ int main(int argc, char* argv[]) {
 #include "capture/AudioCapture.h"
 #include "ml/ModelManager.h"
 #include "output/VirtualCamera.h"
+#include "avatar/AvatarRenderer.h"
 #include "Config.h"
 #include <memory>
 
@@ -93,18 +131,17 @@ public:
     void shutdown();
 
 private:
-    // SDL
-    SDL_Window* window_ = nullptr;
-    SDL_GLContext gl_context_ = nullptr;
+    SDL_Window*    window_     = nullptr;
+    SDL_GLContext  gl_context_ = nullptr;
 
-    // Subsystems (order matters for initialization)
-    std::unique_ptr<Config> config_;
-    std::unique_ptr<ModelManager> models_;
-    std::unique_ptr<CameraCapture> camera_;
-    std::unique_ptr<AudioCapture> audio_;
+    std::unique_ptr<Config>          config_;
+    std::unique_ptr<ModelManager>    models_;
+    std::unique_ptr<CameraCapture>   camera_;
+    std::unique_ptr<AudioCapture>    audio_;
     std::unique_ptr<PipelineManager> pipeline_;
-    std::unique_ptr<VirtualCamera> vcam_;
-    std::unique_ptr<UIManager> ui_;
+    std::unique_ptr<VirtualCamera>   vcam_;
+    std::unique_ptr<UIManager>       ui_;
+    avatar::AvatarRenderer           avatarRenderer_;  // already implemented
 
     bool running_ = false;
 
@@ -115,6 +152,74 @@ private:
     void update();
     void render();
 };
+```
+
+---
+
+## Avatar Renderer (`src/avatar/`)
+
+The avatar renderer is fully implemented. It renders a rigged GLTF 2.0 humanoid
+to an OpenGL FBO and displays it inside the ImGui avatar panel.
+
+### Class interface
+
+```cpp
+// src/avatar/AvatarRenderer.h
+namespace avatar {
+class AvatarRenderer {
+public:
+    // Load GLB model + compile shaders. Call after GL context is current.
+    bool init(const std::string& glbPath);
+
+    // Render avatar to FBO. Call BEFORE ImGui::NewFrame() each frame.
+    void render(float width, float height, float dt);
+
+    // Returns FBO colour texture for ImGui::Image().
+    ImTextureID getTexture() const;
+
+    // Override pose from MediaPipe landmarks (one frame, bypasses animation).
+    // boneMatrices: final skin matrices (globalTransform * inverseBindMatrix).
+    void setPose(std::span<const glm::mat4> boneMatrices);
+
+    // Release GL resources. Call before ImGui_ImplOpenGL3_Shutdown().
+    void shutdown();
+
+    int  jointCount() const;
+    bool isReady()    const;
+};
+}
+```
+
+### GL isolation (critical)
+
+`AvatarRenderer.h` is safe to include from `main.cpp` because it uses **pImpl** —
+all `GLuint` members and `<GL/glew.h>` are confined to `AvatarRenderer.cpp`.
+This prevents conflicts with `imgui_impl_opengl3_loader.h`, which defines the same
+GL symbols and is pulled in transitively by `<imgui_impl_opengl3.h>`.
+
+**Rule:** Never include `<GL/glew.h>` in the same translation unit as
+`<imgui_impl_opengl3.h>`.
+
+### UV flip
+
+OpenGL FBOs have y=0 at the bottom; ImGui expects y=0 at the top.
+Always call `ImGui::Image` with flipped UVs:
+
+```cpp
+ImGui::Image(avatarRenderer.getTexture(),
+             ImGui::GetContentRegionAvail(),
+             ImVec2(0, 1),   // uv0 — top-left of display = bottom-left of texture
+             ImVec2(1, 0));  // uv1 — bottom-right of display = top-right of texture
+```
+
+### Wiring MediaPipe (Phase 3)
+
+```cpp
+// When MediaPipe landmarks are available, convert to skin matrices and pass in:
+std::vector<glm::mat4> skinMats = landmarkExtractor.toSkinMatrices(landmarks);
+avatarRenderer.setPose(skinMats);
+// Then call render() — pose override takes effect for this frame.
+avatarRenderer.render(w, h, dt);
 ```
 
 ---
@@ -148,10 +253,10 @@ enum class TranslationMode {
 };
 
 struct PipelineResult {
-    std::string english_text;          // Recognized/transcribed text
-    std::string asl_gloss;             // ASL gloss representation
-    std::vector<float> audio_output;   // TTS audio samples
-    cv::Mat annotated_frame;           // Frame with captions/landmarks
+    std::string english_text;
+    std::string asl_gloss;
+    std::vector<float> audio_output;
+    cv::Mat annotated_frame;
     float confidence;
     double latency_ms;
 };
@@ -163,13 +268,11 @@ public:
     void setMode(TranslationMode mode);
     TranslationMode getMode() const;
 
-    // Called every frame from the main loop
     PipelineResult tick(const cv::Mat& camera_frame,
                         const std::vector<float>& audio_buffer,
                         const std::string& text_input);
 
-    // Callbacks for output routing
-    using TextCallback = std::function<void(const std::string&)>;
+    using TextCallback  = std::function<void(const std::string&)>;
     using AudioCallback = std::function<void(const std::vector<float>&)>;
 
     void onTextOutput(TextCallback cb);
@@ -178,19 +281,16 @@ public:
 private:
     TranslationMode mode_ = TranslationMode::ASL_TO_TEXT;
 
-    // Pipeline components
     std::unique_ptr<LandmarkExtractor> landmarks_;
     std::unique_ptr<GestureClassifier> classifier_;
     std::unique_ptr<SentenceAssembler> assembler_;
-    std::unique_ptr<WhisperEngine> whisper_;
-    std::unique_ptr<TTSEngine> tts_;
-    std::unique_ptr<TextToGloss> gloss_;
+    std::unique_ptr<WhisperEngine>     whisper_;
+    std::unique_ptr<TTSEngine>         tts_;
+    std::unique_ptr<TextToGloss>       gloss_;
 
-    // Output callbacks
-    TextCallback text_callback_;
+    TextCallback  text_callback_;
     AudioCallback audio_callback_;
 
-    // Pipeline execution
     PipelineResult runASLToText(const cv::Mat& frame);
     PipelineResult runASLToSpeech(const cv::Mat& frame);
     PipelineResult runSTT(const std::vector<float>& audio);
@@ -208,7 +308,7 @@ Real-time video + audio processing requires careful threading. The application u
 
 ```
 ┌────────────────────────┐
-│  Main Thread           │  SDL events + ImGui rendering
+│  Main Thread           │  SDL events + ImGui rendering + avatar FBO render
 │  (UI + orchestration)  │  ~60 fps
 └──────────┬─────────────┘
            │ reads results from
@@ -290,9 +390,10 @@ their position and size every frame (`ImGuiCond_Always`), so they stretch with t
 ├─ Camera Feed ──────┬─ ASL Avatar ──────┬─ Controls ─────────┤  fills remaining height
 │  35% width         │  40% width        │  25% width         │  minus captions strip
 │                    │                   │                    │
-│  [dark rect]       │  ILY hand drawn   │  Language: EN      │
-│   640x480          │  with DrawList    │  Mode: ASL -> TX   │
-│                    │  primitives       │  Confidence: [bar] │
+│  [dark rect]       │  Live 3D avatar   │  Language: EN      │
+│   No Camera        │  rendered to FBO  │  Mode: ASL -> TX   │
+│                    │  (teal placeholder│  Confidence: [bar] │
+│                    │   if no .glb)     │                    │
 ├────────────────────┴───────────────────┤                    │
 │  Captions  (75% width, 80 px high)     │  (controls extend) │
 │  Recognized text will appear here...   │                    │
@@ -301,18 +402,17 @@ their position and size every frame (`ImGuiCond_Always`), so they stretch with t
 
 - Columns are exact fractions: `cam = w×0.35`, `avatar = w×0.40`, `controls = w×0.25`
 - Captions sit flush at `y = toolbar_height + top_panels_height`, spanning Camera + Avatar columns
-- Font: **Segoe UI 15 px** with BMP glyph ranges 0x2000–0x26FF so `●` renders correctly
-- **All labels are plain ASCII.** ImGui's stb_truetype rasteriser cannot render
-  supplementary-plane emoji (U+1F000+). They always display as `?` regardless of font.
-  The ILY hand sign is drawn with `ImDrawList` primitives instead.
+- Font: **Calibri 16 px** (primary) merged with **Segoe UI 16 px** for BMP symbol ranges
+- **All labels are plain ASCII or BMP symbols (≤ U+FFFF).** ImGui cannot render
+  supplementary-plane emoji (U+1F000+) — they always display as `?`.
 
 ### Mobile / compact mode (width < 640 px)
 
 ```
 ┌─ ASL Avatar ──────────────────────┐  fills height - 60 px, full width
 │                                   │
-│  ILY hand (DrawList)              │
-│  ASL Avatar -- coming soon        │
+│  Live 3D avatar (FBO)             │
+│  or teal placeholder              │
 │                                   │
 ├───────────────────────────────────┤  60 px fixed strip
 │  Recognized text here...  ● 60fps │
@@ -326,43 +426,55 @@ their position and size every frame (`ImGuiCond_Always`), so they stretch with t
 ### Font setup
 
 ```cpp
-// Loaded once after ImGui::CreateContext(), before SDL3/GL init
-static const ImWchar glyph_ranges[] = {
-    0x0020, 0x00FF,   // Basic Latin + Latin Supplement
-    0x2000, 0x206F,   // General Punctuation
-    0x2190, 0x23FF,   // Arrows + Misc Technical
-    0x25A0, 0x26FF,   // Geometric Shapes (●) + Misc Symbols
+// Loaded once after ImGui::CreateContext(), before ImGui_ImplOpenGL3_Init()
+ImFontConfig cfg;
+cfg.OversampleH = 3;
+cfg.OversampleV = 2;
+cfg.PixelSnapH = true;
+static const ImWchar text_ranges[] = {
+    0x0020, 0x00FF,  // Basic Latin + Latin Supplement
+    0x2000, 0x206F,  // General Punctuation
     0,
 };
-io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/segoeui.ttf", 15.f, &cfg, glyph_ranges);
+io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/calibri.ttf", 16.f, &cfg, text_ranges);
+
+// Merge Segoe UI for symbol-only ranges Calibri does not cover
+ImFontConfig merge;
+merge.MergeMode  = true;
+merge.OversampleH = 3;
+static const ImWchar symbol_ranges[] = {
+    0x2190, 0x23FF,  // Arrows + Misc Technical (⏹)
+    0x25A0, 0x26FF,  // Geometric Shapes (▶ ●) + Misc Symbols (⚙)
+    0,
+};
+io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/segoeui.ttf", 16.f, &merge, symbol_ranges);
 ```
 
-> **Note:** `/utf-8` is set in `CMakeLists.txt` under the MSVC block so MSVC reads the
-> source file as UTF-8. Without this flag, any character above U+007F in a string literal
-> is silently corrupted by the system code page (CP1252).
+> **Static arrays:** Glyph range arrays must be `static` — ImGui holds a raw pointer to
+> them across frames. A local (stack) array will cause use-after-free.
 
-> **Emoji rule:** Never use Unicode characters above U+FFFF in ImGui string literals.
-> Use plain ASCII labels and `ImDrawList` primitives for any graphical representation.
+> **No fonts after init:** Never add or resize fonts after `ImGui_ImplOpenGL3_Init`.
+> The font atlas texture is uploaded to the GPU at that point.
 
-### Video Texture Rendering
+> **`/utf-8` flag:** Without `add_compile_options(/utf-8)` in CMakeLists.txt, MSVC reads
+> source as CP1252 and corrupts any character above U+007F in string literals.
 
-Camera frames are uploaded to an OpenGL texture and displayed in ImGui:
+### Video Texture Rendering (Camera Feed — planned)
+
+Camera frames are uploaded to an OpenGL texture and displayed in ImGui.
+Note `static_cast<ImTextureID>` — `ImTextureID` is `ImU64` in this ImGui build,
+not `void*`.
 
 ```cpp
 // src/ui/widgets/VideoWidget.cpp
-#include "VideoWidget.h"
-#include <GL/gl.h>
-
 void VideoWidget::updateTexture(const cv::Mat& frame) {
     if (texture_id_ == 0) {
         glGenTextures(1, &texture_id_);
     }
-
     glBindTexture(GL_TEXTURE_2D, texture_id_);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    // OpenCV uses BGR, convert to RGB
     cv::Mat rgb;
     cv::cvtColor(frame, rgb, cv::COLOR_BGR2RGB);
 
@@ -372,8 +484,8 @@ void VideoWidget::updateTexture(const cv::Mat& frame) {
 }
 
 void VideoWidget::render(float width, float height) {
-    ImGui::Image((ImTextureID)(intptr_t)texture_id_,
-                 ImVec2(width, height));
+    // ImTextureID is ImU64 — use static_cast, not reinterpret_cast or (void*)
+    ImGui::Image(static_cast<ImTextureID>(texture_id_), ImVec2(width, height));
 }
 ```
 
@@ -382,18 +494,12 @@ void VideoWidget::render(float width, float height) {
 ```cpp
 // src/ui/panels/ControlPanel.cpp
 void ControlPanel::render(PipelineManager& pipeline) {
-    ImGui::Begin("Control Panel");
+    ImGui::Begin("Controls");
 
     const char* modes[] = {
-        "ASL → Text",
-        "ASL → Speech",
-        "Speech → Text",
-        "Speech → ASL",
-        "Text → Speech",
-        "Text → ASL",
-        "Full Duplex",
-        "Caption Mode",
-        "Voice Mode"
+        "ASL -> Text", "ASL -> Speech", "Speech -> Text",
+        "Speech -> ASL", "Text -> Speech", "Text -> ASL",
+        "Full Duplex", "Caption Mode", "Voice Mode"
     };
 
     int current = static_cast<int>(pipeline.getMode());
@@ -402,12 +508,9 @@ void ControlPanel::render(PipelineManager& pipeline) {
     }
 
     ImGui::Separator();
-
-    // Confidence threshold
     static float confidence = 0.7f;
     ImGui::SliderFloat("Min Confidence", &confidence, 0.3f, 0.95f);
 
-    // Virtual device toggles
     static bool vcam_enabled = false;
     ImGui::Checkbox("Virtual Camera", &vcam_enabled);
 
@@ -424,8 +527,8 @@ void ControlPanel::render(PipelineManager& pipeline) {
 
 Runtime configuration stored as JSON, loaded on startup, editable via UI:
 
-// resources/default_config.json
 ```json
+// resources/default_config.json
 {
   "camera": {
     "device_index": 0,
@@ -458,6 +561,10 @@ Runtime configuration stored as JSON, loaded on startup, editable via UI:
     "caption_font_size": 24,
     "show_landmarks": true
   },
+  "avatar": {
+    "model_path": "resources/models/avatar/avatar.glb",
+    "animation_index": 0
+  },
   "logging": {
     "level": "info",
     "file": "visear.log"
@@ -480,18 +587,18 @@ The application uses a consistent error-handling approach across all subsystems:
 template<typename T>
 class Result {
 public:
-    static Result Ok(T value) { return Result(std::move(value)); }
-    static Result Err(std::string error) { return Result(std::move(error)); }
+    static Result Ok(T value)         { return Result(std::move(value)); }
+    static Result Err(std::string err) { return Result(std::move(err)); }
 
-    bool isOk() const { return std::holds_alternative<T>(data_); }
+    bool isOk()  const { return std::holds_alternative<T>(data_); }
     bool isErr() const { return std::holds_alternative<std::string>(data_); }
 
-    const T& value() const { return std::get<T>(data_); }
+    const T&           value() const { return std::get<T>(data_); }
     const std::string& error() const { return std::get<std::string>(data_); }
 
 private:
-    explicit Result(T value) : data_(std::move(value)) {}
-    explicit Result(std::string error) : data_(std::move(error)) {}
+    explicit Result(T value)       : data_(std::move(value)) {}
+    explicit Result(std::string e) : data_(std::move(e)) {}
     std::variant<T, std::string> data_;
 };
 ```
@@ -501,10 +608,13 @@ Usage throughout the codebase:
 ```cpp
 Result<Landmarks> result = extractor.extract(frame);
 if (result.isErr()) {
-    LOG_WARN("Landmark extraction failed: {}", result.error());
+    spdlog::warn("Landmark extraction failed: {}", result.error());
     return PipelineResult{};  // Skip this frame gracefully
 }
 auto landmarks = result.value();
 ```
 
-The application should never crash due to a single bad frame or audio glitch. Every pipeline stage returns a Result and failures are logged and skipped gracefully.
+The application should never crash due to a single bad frame or audio glitch.
+Every pipeline stage returns a `Result` and failures are logged and skipped gracefully.
+The avatar renderer follows the same pattern — `init()` returns `bool` and the
+app falls back to the placeholder on failure.

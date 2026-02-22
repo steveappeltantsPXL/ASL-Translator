@@ -71,6 +71,9 @@ git submodule add -b docking https://github.com/ocornut/imgui.git vendor/imgui
 > **Gotcha:** `vendor/` must NOT be listed in `.gitignore`. Git submodules are
 > registered via `.gitmodules` and cannot be added to ignored paths.
 
+The `vendor/tinygltf/` directory is **not** a submodule — it contains vendored
+header files (`tiny_gltf.h`, `stb_image.h`) committed directly to the repository.
+
 If cloning an existing repo that already has submodules:
 
 ```powershell
@@ -90,8 +93,9 @@ commit SHA. A date string will be rejected.
   "version": "0.1.0",
   "builtin-baseline": "3af1d1e60af2b2abf55760538cd607829029b07a",
   "dependencies": [
-    "sdl3", "opencv4", "onnxruntime-gpu", "spdlog",
-    "nlohmann-json", "sqlitecpp", "gtest", "cpr", "protobuf"
+    "sdl3", "sdl3-image", "opencv4", "onnxruntime-gpu", "spdlog",
+    "nlohmann-json", "sqlitecpp", "gtest", "cpr", "protobuf",
+    "glm", "glew"
   ]
 }
 ```
@@ -106,40 +110,62 @@ git -C C:\vcpkg rev-parse HEAD
 
 ## 4. Configure & Build (Windows — Visual Studio Generator)
 
-> **Important:** Use the `"Visual Studio 17 2022" -A x64` generator on Windows.
+> **Important:** Use the `"Visual Studio 17 2022"` generator on Windows.
 > The Ninja generator defaults to x86 with MSVC, causing package mismatches
-> (SDL3, ONNX Runtime GPU are 64-bit only).
+> (SDL3, ONNX Runtime GPU are 64-bit only). The `-A x64` flag is not required
+> when VCPKG_TARGET_TRIPLET is set to `x64-windows` — CMake infers the arch.
 
 ```powershell
-# Configure (creates build/ with .sln and .vcxproj files)
-cmake -B build -G "Visual Studio 17 2022" -A x64 `
+# Configure (creates cmake-build-debug-msvc/ with .sln and .vcxproj files)
+cmake -B cmake-build-debug-msvc -G "Visual Studio 17 2022" `
     -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
     -DVCPKG_TARGET_TRIPLET=x64-windows
 
 # Build Debug
-cmake --build build --config Debug
+cmake --build cmake-build-debug-msvc --config Debug
 
 # Run
-.\build\Debug\VisearASLTranslator.exe
+.\cmake-build-debug-msvc\Debug\VisearASLTranslator.exe
 ```
 
 ```powershell
 # Build Release
-cmake --build build --config Release
+cmake --build cmake-build-debug-msvc --config Release
 
-.\build\Release\VisearASLTranslator.exe
+.\cmake-build-debug-msvc\Release\VisearASLTranslator.exe
 ```
 
 Opening the solution in Visual Studio:
 
 ```powershell
-# Open the generated solution directly
-start build\VisearASLTranslator.sln
+start cmake-build-debug-msvc\VisearASLTranslator.sln
 ```
 
 ---
 
-## 5. onnxruntime-gpu — CMake Quirk
+## 5. Avatar Model (one-time setup)
+
+The avatar renderer is implemented but requires a GLTF 2.0 model file:
+
+```
+resources/models/avatar/avatar.glb
+```
+
+To obtain a free Mixamo character:
+
+1. Visit [mixamo.com](https://www.mixamo.com) → choose a character → **T-Pose** → Download as **FBX for Unity**
+2. Open the FBX in **Blender** → **File → Export → glTF 2.0** (`.glb`, embed textures, include armature)
+3. Save as `resources/models/avatar/avatar.glb` in the project root
+
+Alternatively, download a pre-rigged `.glb` from the
+[Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets).
+
+Without the model file the app runs normally — the avatar panel shows the teal
+placeholder and logs: `Avatar init failed — placeholder will be shown`.
+
+---
+
+## 6. onnxruntime-gpu — CMake Quirk
 
 The `onnxruntime-gpu` vcpkg package does **not** ship a CMake config file.
 `find_package(onnxruntime CONFIG REQUIRED)` will fail.
@@ -159,42 +185,60 @@ No action needed — this is already in the project's `CMakeLists.txt`.
 
 ---
 
-## 6. Run Tests
+## 7. Run Tests
 
 > Tests are not yet implemented. Uncomment the GTest block in `CMakeLists.txt`
 > and add `tests/CMakeLists.txt` before using these commands.
 
 ```powershell
-cmake --build build --config Debug --target VisearTests
-ctest --test-dir build -C Debug --output-on-failure
+cmake --build cmake-build-debug-msvc --config Debug --target VisearTests
+ctest --test-dir cmake-build-debug-msvc -C Debug --output-on-failure
 ```
 
 ---
 
-## 7. Clean Build
+## 8. Clean Build
+
+Required after changing `find_package` calls or linking structure in `CMakeLists.txt`:
 
 ```powershell
-Remove-Item -Recurse -Force build
+Remove-Item -Recurse -Force cmake-build-debug-msvc
 
-cmake -B build -G "Visual Studio 17 2022" -A x64 `
+cmake -B cmake-build-debug-msvc -G "Visual Studio 17 2022" `
     -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
     -DVCPKG_TARGET_TRIPLET=x64-windows
 
-cmake --build build --config Debug
+cmake --build cmake-build-debug-msvc --config Debug
 ```
 
 ---
 
-## 8. Common Errors & Fixes
+## 9. Replacing the Application Icon
+
+```powershell
+# 1. Drop your new image (any size PNG) as src/assets/app_icon.ico
+# 2. Convert it to a proper multi-resolution ICO:
+powershell -ExecutionPolicy Bypass -File tools\make_ico.ps1
+# 3. Rebuild — the RC compiler picks it up automatically:
+cmake --build cmake-build-debug-msvc --config Debug
+```
+
+---
+
+## 10. Common Errors & Fixes
 
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `builtin-baseline` is not a valid commit sha | Date string used instead of SHA | Use 40-char hex SHA from `git -C C:\vcpkg rev-parse HEAD` |
-| `onnxruntime-gpu is only supported on ... x86-windows` | Ninja defaults to x86 | Use `"Visual Studio 17 2022" -A x64` generator |
+| `onnxruntime-gpu is only supported on ... x86-windows` | Ninja defaults to x86 | Use `"Visual Studio 17 2022"` generator |
 | `Could not find onnxruntimeConfig.cmake` | onnxruntime-gpu has no CMake config | Already handled in CMakeLists.txt via find_library |
-| `Cannot find source file: vendor/imgui/imgui.cpp` | ImGui submodule not added | Run `git submodule add -b docking ... vendor/imgui` |
+| `Cannot find source file: vendor/imgui/imgui.cpp` | ImGui submodule not cloned | Run `git submodule update --init --recursive` |
 | `The following paths are ignored by .gitignore: vendor` | vendor/ was in .gitignore | Remove `vendor/` line from .gitignore |
 | `CMAKE_MAKE_PROGRAM is not set` | Ninja not found or wrong generator | Use VS generator, not Ninja, on Windows |
+| `Cannot open include file: 'stb_image.h'` | stb_image.h missing from vendor/tinygltf/ | Copy `stb_image.h` from stb repo into `vendor/tinygltf/` |
+| Avatar FBO incomplete `0x8CD6` | GL context too old (< 3.3) | Verify `SDL_GL_CONTEXT_MINOR_VERSION` is set to 3 |
+| `reinterpret_cast: cannot convert from 'uintptr_t' to 'ImTextureID'` | ImTextureID is ImU64 in this ImGui build | Use `static_cast<ImTextureID>(texId)` |
+| `RC2175: resource file assets\app_icon.ico is not in 3.00 format` | ICO file is actually a PNG | Run `tools\make_ico.ps1` to convert |
 
 ---
 
@@ -204,3 +248,4 @@ cmake --build build --config Debug
 - vcpkg packages are cached at `C:\Users\<user>\AppData\Local\vcpkg\archives`.
 - `whisper.cpp`, `piper`, and `MediaPipe` are commented out in `CMakeLists.txt` until their submodules are added and integrated.
 - `VCPKG_ROOT` must be set as a persistent user/system environment variable, not just for the current session.
+- `vendor/tinygltf/` contains `tiny_gltf.h` and `stb_image.h` committed directly — not a git submodule.
