@@ -1,8 +1,12 @@
 name: CI
 
+#on:
+#  pull_request:
+#    branches: [main, develop]
+
 on:
-  pull_request:
-    branches: [main, develop]
+  push:
+    branches: [ci-test]   # only fires when you push this branch
 
 jobs:
   format-check:
