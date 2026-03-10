@@ -16,7 +16,7 @@ body:
     attributes:
       label: Story
       description: As a [role], I want [goal], so that [benefit].
-      placeholder: "Als een burger wil ik een overzicht zien van lokale initiatieven, zodat ik kan deelnemen aan mijn gemeenschap."
+      placeholder: "As a citizen, I want to see an overview of local initiatives, so that I can participate in my community."
     validations:
       required: true
 
@@ -26,9 +26,9 @@ body:
       label: Acceptance Criteria
       description: Define the conditions that must be met for this story to be considered done.
       placeholder: |
-        - [ ] Gegeven dat de gebruiker ingelogd is, wanneer hij de homepage bezoekt, dan ziet hij een lijst van initiatieven
-        - [ ] De lijst is gefilterd op gemeente
-        - [ ] Elk initiatief toont naam, datum en status
+        - [ ] Given that the user is logged in, when they visit the homepage, then they see a list of initiatives
+        - [ ] The list is filtered by municipality
+        - [ ] Each initiative displays name, date and status
     validations:
       required: true
 
