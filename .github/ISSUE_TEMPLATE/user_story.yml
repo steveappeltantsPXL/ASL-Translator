@@ -68,11 +68,11 @@ body:
     attributes:
       label: Additional Notes / Dependencies
       placeholder: "Depends on #12 (Strapi content type: Initiative)"
-```
+
 **What this gives you in practice:**
 
 When a contributor clicks "New Issue" in your repo, they see this:
-```
+
 [ Story textarea          ]
 [ Acceptance Criteria     ]
 [ Priority dropdown  ▼   ]
