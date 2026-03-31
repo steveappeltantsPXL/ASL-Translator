@@ -1,0 +1,24 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Source files — always LF
+*.cpp text eol=lf
+*.h text eol=lf
+*.hpp text eol=lf
+*.cmake text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.glsl text eol=lf
+*.rc text eol=lf
+
+# Binary files
+*.glb binary
+*.ico binary
+*.png binary
+*.jpg binary
+*.onnx binary
+
+.github/workflows/*.lock.yml linguist-generated=true merge=ours

@@ -9,7 +9,7 @@ const float top_panels_height = io.DisplaySize.y - toolbar_height - captions_hei
 
 Desktop widths (≥ 640 px):
 - **Toolbar:** y=0, h=40, full width
-- **Camera Feed:** 35% of window width, h=top_panels_height
+- **Camera Feed:** 35% of window width, h=top_panels_height — shows live webcam when capturing, dark placeholder when idle
 - **ASL Avatar:** 40% of window width, h=top_panels_height
 - **Controls:** 25% of window width, h=`io.DisplaySize.y - toolbar_height` (extends to bottom)
 - **Captions:** 75% width, y=`DisplaySize.y - 80`, h=80

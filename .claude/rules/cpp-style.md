@@ -3,7 +3,9 @@
 ## Standard and compiler
 - C++20 (`set(CMAKE_CXX_STANDARD 20)`)
 - MSVC (Visual Studio 2022), warnings at `/W4`
-- Runtime library: `MultiThreadedDLL` (`/MD`) — must match vcpkg triplet `x64-windows`
+- Runtime library: `MultiThreaded$<$<CONFIG:Debug>:Debug>DLL` — `/MDd` for Debug, `/MD` for Release.
+  Must match vcpkg triplet `x64-windows`. OpenCV's `debug_build_guard` namespace requires
+  `_DEBUG` consistency between consumer code and the DLL.
 - `/utf-8` compile flag is mandatory — without it MSVC corrupts non-ASCII string literals (► ● ⚙ render as `?`)
 
 ## Memory management — RAII only

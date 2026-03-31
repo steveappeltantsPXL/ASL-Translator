@@ -35,8 +35,12 @@ if(MSVC)
     # RelWithDebInfo: Debug symbols + optimization (for profiling)
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /Zi /O2")
 
-    # Runtime library: Use dynamic multi-threaded (matches vcpkg default)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    # Runtime library: /MDd for Debug (defines _DEBUG, matches vcpkg debug libs),
+    # /MD for Release/RelWithDebInfo (matches vcpkg release libs).
+    # OpenCV's debug_build_guard namespace requires _DEBUG to be consistent
+    # between consumer code and the DLL — a flat "MultiThreadedDLL" (/MD always)
+    # breaks linking against vcpkg debug OpenCV.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
     # Additional optimizations for profiling accuracy
     add_compile_options(/fp:precise)  # Precise floating-point for consistent results
@@ -70,8 +74,7 @@ endforeach()
 find_package(SDL3 CONFIG REQUIRED)
 # Uncomment when image loading (e.g. camera feed textures) is implemented:
 # find_package(SDL3_image CONFIG REQUIRED)
-# Uncomment when CameraCapture (OpenCV) is implemented:
-# find_package(OpenCV CONFIG REQUIRED)
+find_package(OpenCV CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SQLiteCpp CONFIG REQUIRED)
@@ -135,10 +138,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     imgui
     SDL3::SDL3
     # SDL3_image::SDL3_image  # uncomment when image loading is implemented
-    # opencv_core             # uncomment when CameraCapture is implemented
-    # opencv_videoio
-    # opencv_imgproc
-    # opencv_highgui
+    ${OpenCV_LIBS}
     ${ONNXRUNTIME_LIB}
     spdlog::spdlog
     nlohmann_json::nlohmann_json

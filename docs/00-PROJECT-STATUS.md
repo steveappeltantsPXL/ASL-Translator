@@ -1,7 +1,7 @@
 # Project Status — Visear ASL Translator
 
 **Last updated:** 2026-02-22
-**Phase:** Foundation + Tier 2 Avatar renderer implemented — responsive UI shell with live 3D avatar pipeline
+**Phase:** Foundation + Tier 2 Avatar renderer + Camera Capture implemented — responsive UI shell with live 3D avatar and webcam feed
 
 This document captures the actual current state of the project: what is built,
 what works, what is pending, and what to do next. It is the starting point for
@@ -50,6 +50,9 @@ Visear-ASL-Translator/
 │   ├── app.rc                  ✅ Windows resource — embeds app_icon.ico into .exe
 │   ├── assets/
 │   │   └── app_icon.ico        ✅ Multi-resolution ICO (16/32/48/256/512 px)
+│   ├── capture/                ✅ Camera capture (OpenCV → GL texture, pImpl)
+│   │   ├── CameraCapture.h        ✅ pImpl façade — no GL/OpenCV includes
+│   │   └── CameraCapture.cpp      ✅ cv::VideoCapture + GL texture upload
 │   └── avatar/                 ✅ Tier 2 rigged 3D avatar pipeline
 │       ├── AvatarRenderer.h/.cpp   ✅ pImpl façade — GLEW, FBO, per-frame render, setPose()
 │       ├── AvatarShaders.h         ✅ GLSL 3.30 skinned-mesh vertex + Phong fragment shaders
@@ -128,7 +131,7 @@ All packages installed at `cmake-build-debug-msvc/vcpkg_installed/x64-windows/`.
     - Desktop (≥ 640 px): pinned toolbar + Camera Feed / ASL Avatar / Controls panels +
       Captions strip; all panels stretch with the window every frame (`ImGuiCond_Always`)
     - Mobile (< 640 px): full-width ASL Avatar fills the window above a 60 px captions strip
-- [x] **Toolbar** — "Start Capture" / "Stop" buttons, live FPS, `● Running` status
+- [x] **Toolbar** — "Start Capture" / "Stop" buttons, live FPS, `● Capturing` / `● Idle` status
 - [x] **All UI labels are plain ASCII** — no emoji or supplementary-plane characters anywhere
 - [x] **Segoe UI font** loaded at 16 px with extended BMP glyph ranges covering `●`
 - [x] **`/utf-8` MSVC flag** — source file and string literals treated as UTF-8 throughout
@@ -143,6 +146,13 @@ All packages installed at `cmake-build-debug-msvc/vcpkg_installed/x64-windows/`.
     - GLTF 2.0 keyframe animation (linear T/S interpolation, slerp R) with idle loop
     - `setPose(span<mat4>)` interface ready to accept MediaPipe landmark data
     - Falls back to teal placeholder when `resources/models/avatar/avatar.glb` is absent
+- [x] **Camera capture** — live webcam feed displayed in the Camera Feed panel:
+    - `CameraCapture` class with pImpl (same GL loader isolation as AvatarRenderer)
+    - DirectShow backend on Windows (fast cold-start), `CAP_ANY` fallback
+    - Requests 640x480 @ 30fps (advisory), learns actual resolution from first frame
+    - `cv::cvtColor(BGR → RGB)` + `glTexSubImage2D` fast path per frame
+    - Toolbar buttons wire open/close; panel shows dark placeholder when idle
+    - No UV flip needed — cv::Mat is top-left origin, matching ImGui's default UVs
 
 ---
 
@@ -153,7 +163,8 @@ All packages installed at `cmake-build-debug-msvc/vcpkg_installed/x64-windows/`.
 | Avatar model file             | —                         | Place Mixamo GLB at `resources/models/avatar/avatar.glb` |
 | App module (`app/`)           | `07-APPLICATION-GUIDE.md` | Application class, config system                   |
 | UI panels (`ui/panels/`)      | `07-APPLICATION-GUIDE.md` | Camera, caption, control, debug panels             |
-| OpenCV camera capture         | `07-APPLICATION-GUIDE.md` | OpenCV is installed, just not wired up             |
+| ~~OpenCV camera capture~~     | `07-APPLICATION-GUIDE.md` | ✅ **Implemented** — `src/capture/CameraCapture`    |
+| Camera capture threading      | `07-APPLICATION-GUIDE.md` | Single-threaded; ring buffer / worker thread TBD   |
 | MediaPipe hand/pose landmarks | `06-ML-PIPELINE.md`       | Not yet integrated — needs Bazel or prebuilts      |
 | ONNX model loading            | `06-ML-PIPELINE.md`       | Runtime installed, session code not written        |
 | ASL → Text pipeline           | `06-ML-PIPELINE.md`       | Full pipeline stub pending                         |
@@ -212,7 +223,13 @@ All packages installed at `cmake-build-debug-msvc/vcpkg_installed/x64-windows/`.
    `ImGui::Image()` is called with `uv0=(0,1), uv1=(1,0)` to correct this.
    Without the flip, the avatar renders upside-down.
 
-10. **`STB_IMAGE_IMPLEMENTATION` must be defined in exactly one translation unit.**
+10. **OpenCV `debug_build_guard` requires `/MDd` in Debug builds.**
+    OpenCV 4.x wraps `_InputArray`/`_OutputArray` in a `debug_build_guard` namespace when
+    `_DEBUG` is defined. The vcpkg debug DLLs are compiled with `/MDd` (defines `_DEBUG`).
+    If consumer code uses `/MD` (no `_DEBUG`), the mangled symbols won't match, causing
+    LNK2019. The fix is `CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"`.
+
+11. **`STB_IMAGE_IMPLEMENTATION` must be defined in exactly one translation unit.**
     It is defined in `src/avatar/GltfLoader.cpp`. Do not add it anywhere else.
     If other code needs stb_image, include `stb_image.h` without the implementation define.
 
@@ -249,9 +266,10 @@ Alternative: download a pre-rigged `.glb` from the
 
 1. **Create `src/app/Application.h/.cpp`** — Encapsulate SDL + ImGui lifecycle
 2. **Create `src/ui/UIManager.h/.cpp`** — Orchestrate ImGui docking layout
-3. **Create `src/capture/CameraCapture.h/.cpp`** — OpenCV `cv::VideoCapture` wrapper (RAII)
-4. **Create `src/ui/panels/CameraPanel.h/.cpp`** — Render live camera feed to ImGui
-5. **Verify camera works** — Test with built-in/USB webcam
+3. ~~**Create `src/capture/CameraCapture.h/.cpp`**~~ — ✅ Done
+4. ~~**Create `src/ui/panels/CameraPanel.h/.cpp`**~~ — ✅ Integrated directly in `main.cpp`
+5. ~~**Verify camera works**~~ — ✅ Done
+6. **Add capture threading** — Move `grabFrame()` to a worker thread with ring buffer
 
 ### Phase 3: ML Pipeline & Inference (estimated 2–4 weeks)
 
@@ -336,9 +354,11 @@ See `docs/03-BUILD-COMMANDS.md` for the full reference including error fixes.
 5. **Place the avatar model** at `resources/models/avatar/avatar.glb`
    (see *Immediate Next Steps → Avatar model* above for how to obtain one).
 
-6. **You should see:** A window with a toolbar (► Start Capture, ■ Stop, ● Running, FPS),
+6. **You should see:** A window with a toolbar (► Start Capture, ■ Stop, ● Idle, FPS),
    three coupled panels (Camera Feed / ASL Avatar / Controls), and a Captions strip at the
-   bottom. The ASL Avatar panel shows a live animated 3D character once the model file is
-   present, or a teal placeholder otherwise. Resize below 640 px wide to switch to mobile mode.
+   bottom. Click "► Start Capture" to show live webcam in the Camera Feed panel (status
+   changes to "● Capturing"). The ASL Avatar panel shows a live animated 3D character once
+   the model file is present, or a teal placeholder otherwise. Resize below 640 px wide to
+   switch to mobile mode.
 
 **For detailed setup, build errors, and troubleshooting,** see `docs/02-GETTING-STARTED.md`.

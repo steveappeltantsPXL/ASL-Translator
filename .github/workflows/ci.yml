@@ -1,0 +1,73 @@
+name: CI
+
+#on:
+#  pull_request:
+#    branches: [main, develop]
+
+on:
+  push:
+    branches: [ci-test]   # only fires when you push this branch
+
+jobs:
+  format-check:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-18
+
+      - name: Check formatting
+        run: |
+          find src/ -name '*.cpp' -o -name '*.h' -o -name '*.hpp' | \
+            xargs clang-format-18 --dry-run --Werror
+
+  commit-lint:
+    name: Commit Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .{1,}'
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          failed=0
+          while IFS= read -r msg; do
+            if ! echo "$msg" | grep -qE "$pattern"; then
+              echo "BAD: $msg"
+              failed=1
+            fi
+          done < <(git log --format='%s' "$base".."$head")
+
+          if [ "$failed" -eq 1 ]; then
+            echo ""
+            echo "ERROR: One or more commit messages do not follow Conventional Commits."
+            echo "Expected format: type(scope): description"
+            echo "Valid types: feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
+            exit 1
+          fi
+          echo "All commit messages follow Conventional Commits."
+
+  branch-policy:
+    name: Branch Policy
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.base.ref == 'main'
+    steps:
+      - name: Check source branch
+        run: |
+          source_branch="${{ github.event.pull_request.head.ref }}"
+          if [[ "$source_branch" =~ ^(release|hotfix)/ ]]; then
+            echo "OK: '$source_branch' is allowed to target main."
+          else
+            echo "ERROR: Only release/* and hotfix/* branches can target main."
+            echo "       Source branch '$source_branch' is not allowed."
+            echo "       Please target 'develop' instead, or rename your branch."
+            exit 1
+          fi
